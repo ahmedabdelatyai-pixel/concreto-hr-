@@ -117,15 +117,25 @@ app.delete('/api/applicants/clear', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB Atlas');
-    useLocalDB = false;
-  })
-  .catch(err => {
-    console.error('Cloud DB connection failed, switching to LOCAL DB mode.');
-    useLocalDB = true;
-  })
-  .finally(() => {
-    app.listen(PORT, () => console.log(`Server running on port ${PORT} (Mode: ${useLocalDB ? 'Local' : 'Cloud'})`));
-  });
+// Connection logic
+if (MONGODB_URI) {
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('Connected to MongoDB Atlas');
+      useLocalDB = false;
+    })
+    .catch(err => {
+      console.error('Cloud DB connection failed, switching to LOCAL DB mode.');
+      useLocalDB = true;
+    });
+} else {
+  useLocalDB = true;
+}
+
+// Export for Vercel
+module.exports = app;
+
+// Only listen if not running as a Vercel function
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT} (Mode: ${useLocalDB ? 'Local' : 'Cloud'})`));
+}
