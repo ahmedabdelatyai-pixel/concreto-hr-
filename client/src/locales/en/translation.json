@@ -1,0 +1,48 @@
+{
+  "landing": {
+    "title": "Welcome to Concreto Ready Mix",
+    "subtitle": "AI-Powered HR Hiring Platform",
+    "start_application": "Start Application",
+    "switch_lang": "عربي"
+  },
+  "profile": {
+    "title": "Candidate Profile",
+    "name": "Full Name",
+    "email": "Email Address",
+    "role": "Applied Role",
+    "next": "Next Step"
+  },
+  "cv": {
+    "title": "Upload your CV",
+    "drag_drop": "Drag & drop your CV here, or click to select",
+    "processing": "Analyzing CV...",
+    "next": "Proceed to Interview"
+  },
+  "interview": {
+    "title": "AI Interview",
+    "question": "Question {{current}} of {{total}}",
+    "next": "Next Question",
+    "finish": "Finish Interview",
+    "questions": []
+  },
+  "completion": {
+    "title": "Thank You",
+    "message": "Your application and interview have been successfully submitted.",
+    "view_results": "View Evaluation Result"
+  },
+  "evaluation": {
+    "title": "Evaluation Result",
+    "behavior": "Behavior Score",
+    "attitude": "Attitude Score",
+    "personality": "Personality Fit",
+    "total": "Total Score",
+    "status": "Recommendation",
+    "disc_profile": "DISC Profile Analysis",
+    "disc_d": "Dominance (D)",
+    "disc_i": "Influence (I)",
+    "disc_s": "Steadiness (S)",
+    "disc_c": "Conscientiousness (C)",
+    "strengths": "Strengths",
+    "weaknesses": "Areas of Improvement"
+  }
+}

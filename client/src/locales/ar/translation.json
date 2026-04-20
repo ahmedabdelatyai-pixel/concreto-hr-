@@ -1,0 +1,48 @@
+{
+  "landing": {
+    "title": "مرحباً بكم في كونكريتو ريدي ميكس",
+    "subtitle": "منصة التوظيف الذكية للموارد البشرية",
+    "start_application": "ابدأ التقديم",
+    "switch_lang": "English"
+  },
+  "profile": {
+    "title": "الملف الشخصي للمرشح",
+    "name": "الاسم الكامل",
+    "email": "البريد الإلكتروني",
+    "role": "الوظيفة المتقدم لها",
+    "next": "الخطوة التالية"
+  },
+  "cv": {
+    "title": "رفع السيرة الذاتية",
+    "drag_drop": "اسحب وأفلت السيرة الذاتية هنا، أو انقر للاختيار",
+    "processing": "جاري تحليل السيرة الذاتية...",
+    "next": "الانتقال إلى المقابلة"
+  },
+  "interview": {
+    "title": "المقابلة الذكية",
+    "question": "السؤال {{current}} من {{total}}",
+    "next": "السؤال التالي",
+    "finish": "إنهاء المقابلة",
+    "questions": []
+  },
+  "completion": {
+    "title": "شكراً لك",
+    "message": "تم إرسال طلبك ومقابلتك بنجاح.",
+    "view_results": "عرض نتيجة التقييم"
+  },
+  "evaluation": {
+    "title": "نتيجة التقييم",
+    "behavior": "درجة السلوك",
+    "attitude": "درجة الموقف",
+    "personality": "ملاءمة الشخصية",
+    "total": "المجموع الكلي",
+    "status": "التوصية",
+    "disc_profile": "تحليل نمط الشخصية (DISC)",
+    "disc_d": "السيطرة (Dominance)",
+    "disc_i": "التأثير (Influence)",
+    "disc_s": "الاستقرار (Steadiness)",
+    "disc_c": "الضمير (Conscientiousness)",
+    "strengths": "نقاط القوة",
+    "weaknesses": "نقاط التحسين"
+  }
+}

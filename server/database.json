@@ -1,0 +1,176 @@
+{
+  "applicants": [
+    {
+      "candidate": {
+        "name": "سالم سعد سالم الشاذلي",
+        "email": "test@example.com",
+        "role": "2",
+        "jobTitle": "أخصائي موارد بشرية",
+        "jobId": "2"
+      },
+      "jobId": "2",
+      "answers": [
+        {
+          "question": "حدثنا عن خبرتك في مجال أخصائي موارد بشرية.",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما هو أكبر تحدي واجهته في عملك السابق؟",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "كيف تتعامل مع ضغط العمل والمواعيد النهائية؟",
+          "answer": "ءءءء"
+        },
+        {
+          "question": "لماذا تريد الانضمام لشركة كونكريتو؟",
+          "answer": "ءءءءء"
+        },
+        {
+          "question": "كيف تحافظ على معايير الجودة في عملك؟",
+          "answer": "ءءءءءءءءء"
+        },
+        {
+          "question": "صف لنا موقفاً اختلفت فيه مع زميل وكيف حللته.",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما هي طريقتك في تنظيم مهامك اليومية؟",
+          "answer": "ءءءءء"
+        },
+        {
+          "question": "كيف تطور مهاراتك بشكل مستمر؟",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما الذي يميزك عن غيرك من المتقدمين؟",
+          "answer": "ء"
+        },
+        {
+          "question": "أين ترى نفسك بعد 5 سنوات في الشركة؟",
+          "answer": "ء"
+        }
+      ],
+      "cvData": null,
+      "evaluation": {
+        "behavior_score": 0,
+        "attitude_score": 0,
+        "personality_score": 0,
+        "total_score": 0,
+        "disc": {
+          "d": 0,
+          "i": 0,
+          "s": 0,
+          "c": 0
+        },
+        "strengths": [],
+        "weaknesses": [
+          "All answers were invalid or random text."
+        ],
+        "recommendation": "Invalid Answers",
+        "scores": {
+          "behavior": 0,
+          "attitude": 0,
+          "personality": 0
+        }
+      },
+      "_id": "1776643180572",
+      "appliedAt": "2026-04-19T23:59:40.572Z"
+    },
+    {
+      "candidate": {
+        "name": "سالم سعد سالم الشاذلي",
+        "email": "test@example.com",
+        "role": "2",
+        "jobTitle": "أخصائي موارد بشرية",
+        "jobId": "2"
+      },
+      "jobId": "2",
+      "answers": [
+        {
+          "question": "حدثنا عن خبرتك في مجال أخصائي موارد بشرية.",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما هو أكبر تحدي واجهته في عملك السابق؟",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "كيف تتعامل مع ضغط العمل والمواعيد النهائية؟",
+          "answer": "ءءءء"
+        },
+        {
+          "question": "لماذا تريد الانضمام لشركة كونكريتو؟",
+          "answer": "ءءءءء"
+        },
+        {
+          "question": "كيف تحافظ على معايير الجودة في عملك؟",
+          "answer": "ءءءءءءءءء"
+        },
+        {
+          "question": "صف لنا موقفاً اختلفت فيه مع زميل وكيف حللته.",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما هي طريقتك في تنظيم مهامك اليومية؟",
+          "answer": "ءءءءء"
+        },
+        {
+          "question": "كيف تطور مهاراتك بشكل مستمر؟",
+          "answer": "ءءءءءءء"
+        },
+        {
+          "question": "ما الذي يميزك عن غيرك من المتقدمين؟",
+          "answer": "ء"
+        },
+        {
+          "question": "أين ترى نفسك بعد 5 سنوات في الشركة؟",
+          "answer": "ء"
+        }
+      ],
+      "cvData": null,
+      "evaluation": {
+        "behavior_score": 0,
+        "attitude_score": 0,
+        "personality_score": 0,
+        "total_score": 0,
+        "disc": {
+          "d": 0,
+          "i": 0,
+          "s": 0,
+          "c": 0
+        },
+        "strengths": [],
+        "weaknesses": [
+          "All answers were invalid or random text."
+        ],
+        "recommendation": "Invalid Answers",
+        "scores": {
+          "behavior": 0,
+          "attitude": 0,
+          "personality": 0
+        }
+      },
+      "_id": "1776647025355",
+      "appliedAt": "2026-04-20T01:03:45.355Z"
+    }
+  ],
+  "jobs": [
+    {
+      "_id": "1",
+      "title_en": "Quality Control Engineer",
+      "title_ar": "مهندس مراقبة الجودة",
+      "department": "Quality",
+      "active": true,
+      "createdAt": "2026-04-20T00:00:00.000Z"
+    },
+    {
+      "_id": "2",
+      "title_en": "HR Specialist",
+      "title_ar": "أخصائي موارد بشرية",
+      "department": "HR",
+      "active": true,
+      "createdAt": "2026-04-20T00:00:00.000Z"
+    }
+  ]
+}

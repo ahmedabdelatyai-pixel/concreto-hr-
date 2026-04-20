@@ -1,0 +1,13 @@
+{
+  "name": "concreto-hr-platform",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\" --kill-others",
+    "server": "cd server && node index.js",
+    "client": "cd client && npm run dev",
+    "install-all": "npm install && cd client && npm install && cd ../server && npm install"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
