@@ -11,6 +11,7 @@ export const useInterviewStore = create(
         jobTitle: '',
       },
       cvData: null,
+      cvFile: null,
       generatedQuestions: [],
       interviewAnswers: [],
       evaluation: null,
@@ -20,6 +21,7 @@ export const useInterviewStore = create(
       })),
 
       setCvData: (data) => set({ cvData: data }),
+      setCvFile: (file) => set({ cvFile: file }),
 
       setQuestions: (questions) => {
         console.log("Setting dynamic questions in store:", questions);
@@ -35,6 +37,7 @@ export const useInterviewStore = create(
       reset: () => set({
         candidate: { name: '', email: '', role: '', jobTitle: '' },
         cvData: null,
+        cvFile: null,
         generatedQuestions: [],
         interviewAnswers: [],
         evaluation: null
@@ -42,6 +45,10 @@ export const useInterviewStore = create(
     }),
     {
       name: 'concreto-interview-v2', // Changed version to force refresh
+      partialize: (state) => 
+        Object.fromEntries(
+          Object.entries(state).filter(([key]) => key !== 'cvFile')
+        ),
     }
   )
 );

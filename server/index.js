@@ -94,8 +94,12 @@ app.post('/api/applicants', async (req, res) => {
   }
   try {
     const Applicant = require('./models/Applicant');
+    console.log('Received applicant:', req.body.candidate?.name);
+    console.log('Has cvFile in body?', !!req.body.cvFile);
     const app = new Applicant(req.body);
-    res.status(201).json(await app.save());
+    const saved = await app.save();
+    console.log('Saved with cvFile?', !!saved.cvFile);
+    res.status(201).json(saved);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 

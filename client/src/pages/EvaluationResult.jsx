@@ -21,7 +21,7 @@ function EvaluationResult() {
     const fetchEvaluation = async () => {
       let evalResult = evaluation;
       if (!evalResult) {
-        evalResult = await evaluateInterview(answers);
+        evalResult = await evaluateInterview(answers, candidate.jobTitle);
         setEvaluation(evalResult);
       }
 
@@ -35,6 +35,7 @@ function EvaluationResult() {
           jobId: candidate.jobId,
           answers,
           cvData: useInterviewStore.getState().cvData,
+          cvFile: useInterviewStore.getState().cvFile,
           evaluation: {
             ...evalResult,
             scores: {

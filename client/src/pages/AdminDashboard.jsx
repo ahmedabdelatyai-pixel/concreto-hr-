@@ -16,11 +16,14 @@ function AdminDashboard() {
   const fetchApplicants = useAdminStore(state => state.fetchApplicants);
   const clearApplicants = useAdminStore(state => state.clearApplicants);
 
-  const [activeTab, setActiveTab] = useState('jobs');
+  const [activeTab, setActiveTab] = useState('analytics');
   const [showAddJob, setShowAddJob] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [newJob, setNewJob] = useState({ title_en: '', title_ar: '', department: '' });
   const [serverStatus, setServerStatus] = useState('checking');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterJob, setFilterJob] = useState('all');
 
   useEffect(() => {
     const checkServer = async () => {
@@ -55,6 +58,17 @@ function AdminDashboard() {
 
     // Use html2pdf (loaded via CDN in index.html)
     window.html2pdf().from(element).set(opt).save();
+  };
+
+  const handleDownloadCV = () => {
+    if (selectedApplicant?.cvFile?.data) {
+      const a = document.createElement('a');
+      a.href = selectedApplicant.cvFile.data;
+      a.download = selectedApplicant.cvFile.name || 'Candidate_CV';
+      a.click();
+    } else {
+      alert('No CV file available for this applicant.');
+    }
   };
 
   // Redirect if not logged in
@@ -96,6 +110,35 @@ function AdminDashboard() {
     );
   };
 
+  // ─── Analytics Stats ───────────────────────────────────
+  const totalApplicants = applicants.length;
+  const strongFit = applicants.filter(a => a.evaluation?.recommendation === 'Strong Fit').length;
+  const potentialFit = applicants.filter(a => a.evaluation?.recommendation === 'Potential Fit').length;
+  const notFit = applicants.filter(a => ['Not Fit', 'Invalid Answers'].includes(a.evaluation?.recommendation)).length;
+  const avgScore = totalApplicants > 0
+    ? Math.round(applicants.reduce((sum, a) => sum + (a.evaluation?.total_score || 0), 0) / totalApplicants)
+    : 0;
+  const topJob = jobs.reduce((top, job) => {
+    const count = applicants.filter(a => a.jobId === job._id).length;
+    return count > (top.count || 0) ? { title: job.title_en, count } : top;
+  }, {});
+  const thisWeek = applicants.filter(a => {
+    const d = new Date(a.appliedAt);
+    const now = new Date();
+    return (now - d) / (1000 * 60 * 60 * 24) <= 7;
+  }).length;
+
+  // ─── Filtered Applicants ──────────────────────────────
+  const filteredApplicants = applicants.filter(app => {
+    const matchSearch = !searchQuery ||
+      app.candidate?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.candidate?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.candidate?.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchStatus = filterStatus === 'all' || app.evaluation?.recommendation === filterStatus;
+    const matchJob = filterJob === 'all' || app.jobId === filterJob;
+    return matchSearch && matchStatus && matchJob;
+  });
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg)' }}>
       {/* Top Navbar */}
@@ -115,15 +158,15 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         {/* Tab Buttons */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
           <button
-            onClick={() => { setActiveTab('jobs'); setSelectedApplicant(null); }}
-            className={activeTab === 'jobs' ? 'btn btn-primary' : 'btn btn-outline'}
+            onClick={() => { setActiveTab('analytics'); setSelectedApplicant(null); }}
+            className={activeTab === 'analytics' ? 'btn btn-primary' : 'btn btn-outline'}
             style={{ padding: '0.6rem 1.5rem' }}
           >
-            📋 Jobs ({jobs.length})
+            📊 Analytics
           </button>
           <button
             onClick={() => { setActiveTab('applicants'); setSelectedApplicant(null); }}
@@ -132,9 +175,142 @@ function AdminDashboard() {
           >
             👥 Applicants ({applicants.length})
           </button>
+          <button
+            onClick={() => { setActiveTab('jobs'); setSelectedApplicant(null); }}
+            className={activeTab === 'jobs' ? 'btn btn-primary' : 'btn btn-outline'}
+            style={{ padding: '0.6rem 1.5rem' }}
+          >
+            📋 Jobs ({jobs.length})
+          </button>
         </div>
 
-        {/* ========== JOBS TAB ========== */}
+        {/* ========== ANALYTICS TAB ========== */}
+        {activeTab === 'analytics' && (
+          <div className="fade-in">
+            {/* KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+              {[
+                { label: 'Total Applicants', value: totalApplicants, icon: '👥', color: '#3b82f6' },
+                { label: 'Avg. Score', value: `${avgScore}/100`, icon: '⭐', color: '#fca311' },
+                { label: 'Strong Fit', value: strongFit, icon: '✅', color: '#10b981' },
+                { label: 'This Week', value: thisWeek, icon: '📅', color: '#8b5cf6' },
+              ].map((kpi, i) => (
+                <div key={i} className="card" style={{ padding: '1.5rem', borderLeft: `4px solid ${kpi.color}`, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{kpi.icon}</div>
+                  <div style={{ fontSize: '2rem', fontWeight: '800', color: kpi.color }}>{kpi.value}</div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>{kpi.label}</div>
+                  <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', fontSize: '5rem', opacity: 0.05 }}>{kpi.icon}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              {/* Recommendation Breakdown Chart */}
+              <div className="card">
+                <h3 style={{ marginBottom: '1.5rem' }}>Recommendation Breakdown</h3>
+                {totalApplicants === 0 ? (
+                  <p className="text-muted">No applicants yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {[
+                      { label: 'Strong Fit', count: strongFit, color: '#10b981' },
+                      { label: 'Potential Fit', count: potentialFit, color: '#fca311' },
+                      { label: 'Not Fit / Invalid', count: notFit, color: '#ef4444' },
+                    ].map((item, i) => (
+                      <div key={i}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                          <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
+                          <span style={{ fontWeight: '700', color: item.color }}>{item.count} ({totalApplicants > 0 ? Math.round(item.count / totalApplicants * 100) : 0}%)</span>
+                        </div>
+                        <div style={{ height: '10px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: `${totalApplicants > 0 ? (item.count / totalApplicants) * 100 : 0}%`, height: '100%', background: item.color, borderRadius: '999px', transition: 'width 0.8s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Applicants per Job */}
+              <div className="card">
+                <h3 style={{ marginBottom: '1.5rem' }}>Applicants per Job</h3>
+                {jobs.length === 0 ? (
+                  <p className="text-muted">No jobs yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {jobs.slice(0, 6).map((job) => {
+                      const count = applicants.filter(a => a.jobId === job._id).length;
+                      const maxCount = Math.max(...jobs.map(j => applicants.filter(a => a.jobId === j._id).length), 1);
+                      return (
+                        <div key={job._id}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                            <span style={{ fontSize: '0.85rem', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title_en}</span>
+                            <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{count}</span>
+                          </div>
+                          <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+                            <div style={{ width: `${(count / maxCount) * 100}%`, height: '100%', background: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))', borderRadius: '999px', transition: 'width 0.8s ease' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Score Distribution */}
+              <div className="card">
+                <h3 style={{ marginBottom: '1.5rem' }}>Score Distribution</h3>
+                {totalApplicants === 0 ? <p className="text-muted">No data.</p> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { label: '80–100 (Excellent)', range: [80, 100], color: '#10b981' },
+                      { label: '60–79 (Good)', range: [60, 79], color: '#fca311' },
+                      { label: '40–59 (Average)', range: [40, 59], color: '#f97316' },
+                      { label: '0–39 (Poor)', range: [0, 39], color: '#ef4444' },
+                    ].map((tier, i) => {
+                      const count = applicants.filter(a => {
+                        const s = a.evaluation?.total_score || 0;
+                        return s >= tier.range[0] && s <= tier.range[1];
+                      }).length;
+                      return (
+                        <div key={i}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                            <span style={{ fontSize: '0.85rem' }}>{tier.label}</span>
+                            <span style={{ fontWeight: '700', color: tier.color }}>{count}</span>
+                          </div>
+                          <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+                            <div style={{ width: `${(count / totalApplicants) * 100}%`, height: '100%', background: tier.color, borderRadius: '999px', transition: 'width 0.8s ease' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Top Summary */}
+              <div className="card">
+                <h3 style={{ marginBottom: '1.5rem' }}>Quick Summary</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {[
+                    { label: 'Most Popular Job', value: topJob.title ? `${topJob.title} (${topJob.count})` : 'N/A', icon: '🏆' },
+                    { label: 'Acceptance Rate', value: totalApplicants > 0 ? `${Math.round(strongFit / totalApplicants * 100)}%` : '0%', icon: '📈' },
+                    { label: 'Rejection Rate', value: totalApplicants > 0 ? `${Math.round(notFit / totalApplicants * 100)}%` : '0%', icon: '📉' },
+                    { label: 'Under Review', value: potentialFit, icon: '🔍' },
+                    { label: 'Total Open Positions', value: jobs.length, icon: '💼' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0', borderBottom: '1px solid var(--color-border)' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{item.icon} {item.label}</span>
+                      <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
         {activeTab === 'jobs' && (
           <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -212,41 +388,100 @@ function AdminDashboard() {
         {/* ========== APPLICANTS TAB ========== */}
         {activeTab === 'applicants' && !selectedApplicant && (
           <div className="fade-in">
-            <h3 style={{ marginBottom: '1.5rem' }}>All Applicants</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0 }}>
+                All Applicants
+                <span className="text-muted" style={{ fontSize: '0.9rem', fontWeight: 'normal', marginLeft: '0.5rem' }}>
+                  ({filteredApplicants.length} of {applicants.length})
+                </span>
+              </h3>
+              <button className="btn btn-outline" onClick={() => { if(window.confirm('Clear all applicants?')) clearApplicants(); }}
+                style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                🗑 Clear All
+              </button>
+            </div>
 
-            {applicants.length === 0 ? (
+            {/* Search & Filter Bar */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="🔍 Search by name, email or role..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="form-control"
+                style={{ flex: '2', minWidth: '200px' }}
+              />
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="form-control"
+                style={{ flex: '1', minWidth: '160px' }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="Strong Fit">✅ Strong Fit</option>
+                <option value="Potential Fit">🔶 Potential Fit</option>
+                <option value="Not Fit">❌ Not Fit</option>
+                <option value="Invalid Answers">⚠️ Invalid Answers</option>
+              </select>
+              <select
+                value={filterJob}
+                onChange={e => setFilterJob(e.target.value)}
+                className="form-control"
+                style={{ flex: '1', minWidth: '160px' }}
+              >
+                <option value="all">All Jobs</option>
+                {jobs.map(j => <option key={j._id} value={j._id}>{j.title_en}</option>)}
+              </select>
+              {(searchQuery || filterStatus !== 'all' || filterJob !== 'all') && (
+                <button className="btn btn-outline" onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterJob('all'); }}
+                  style={{ padding: '0.5rem 1rem' }}>✕ Clear</button>
+              )}
+            </div>
+
+            {filteredApplicants.length === 0 ? (
               <div className="card text-center" style={{ padding: '3rem' }}>
-                <p className="text-muted" style={{ fontSize: '1.1rem' }}>No applicants yet. Candidates will appear here after completing their interviews.</p>
+                <p className="text-muted" style={{ fontSize: '1.1rem' }}>
+                  {applicants.length === 0 ? 'No applicants yet.' : 'No results match your search/filter.'}
+                </p>
               </div>
             ) : (
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={thStyle}>#</th>
                       <th style={thStyle}>Name</th>
-                      <th style={thStyle}>Email</th>
                       <th style={thStyle}>Applied Role</th>
                       <th style={thStyle}>Score</th>
                       <th style={thStyle}>Status</th>
+                      <th style={thStyle}>Date</th>
                       <th style={thStyle}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {applicants.map((app) => (
-                      <tr key={app._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={tdStyle}>{app.candidate.name}</td>
-                        <td style={tdStyle}>{app.candidate.email}</td>
-                        <td style={tdStyle}>{getJobTitle(app.jobId)}</td>
+                    {filteredApplicants.map((app, idx) => (
+                      <tr key={app._id} style={{ borderBottom: '1px solid var(--color-border)', transition: 'background 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{...tdStyle, color: 'var(--color-text-muted)', fontSize: '0.8rem'}}>{idx + 1}</td>
                         <td style={tdStyle}>
-                          <span style={{ fontWeight: 'bold', color: app.evaluation?.total_score >= 60 ? '#10b981' : '#ef4444' }}>
+                          <div style={{ fontWeight: '600' }}>{app.candidate?.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{app.candidate?.email}</div>
+                        </td>
+                        <td style={tdStyle}>{app.candidate?.jobTitle || getJobTitle(app.jobId)}</td>
+                        <td style={tdStyle}>
+                          <span style={{ fontWeight: 'bold', color: (app.evaluation?.total_score || 0) >= 60 ? '#10b981' : '#ef4444' }}>
                             {app.evaluation?.total_score || 0} / 100
                           </span>
                         </td>
                         <td style={tdStyle}>{getStatusBadge(app.evaluation?.recommendation || 'Not Fit')}</td>
+                        <td style={{...tdStyle, fontSize: '0.8rem', color: 'var(--color-text-muted)'}}>
+                          {new Date(app.appliedAt).toLocaleDateString()}
+                        </td>
                         <td style={tdStyle}>
                           <button className="btn btn-outline" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
                             onClick={() => setSelectedApplicant(app)}>
-                            View Details
+                            View
                           </button>
                         </td>
                       </tr>
@@ -258,6 +493,7 @@ function AdminDashboard() {
           </div>
         )}
 
+
         {/* ========== APPLICANT DETAIL VIEW ========== */}
         {activeTab === 'applicants' && selectedApplicant && (
           <div className="fade-in">
@@ -266,9 +502,16 @@ function AdminDashboard() {
                 style={{ padding: '0.5rem 1rem' }}>
                 ← Back to Applicants
               </button>
-              <button className="btn btn-primary" onClick={handleDownloadPDF} style={{ padding: '0.5rem 1rem' }}>
-                📥 Download PDF Report
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {selectedApplicant?.cvFile && (
+                  <button className="btn btn-outline" onClick={handleDownloadCV} style={{ padding: '0.5rem 1rem', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}>
+                    📄 Download Original CV
+                  </button>
+                )}
+                <button className="btn btn-primary" onClick={handleDownloadPDF} style={{ padding: '0.5rem 1rem' }}>
+                  📥 Download PDF Report
+                </button>
+              </div>
             </div>
             <div ref={reportRef} style={{ padding: '10px' }}>
               <div style={{ display: 'none', marginBottom: '20px', borderBottom: '2px solid #fca311', paddingBottom: '10px' }} className="pdf-only">

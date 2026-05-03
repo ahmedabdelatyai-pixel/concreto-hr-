@@ -12,6 +12,7 @@ function CvUpload() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   const setCvData = useInterviewStore(state => state.setCvData);
+  const setCvFile = useInterviewStore(state => state.setCvFile);
   const setQuestions = useInterviewStore(state => state.setQuestions);
   const candidate = useInterviewStore(state => state.candidate);
 
@@ -28,20 +29,33 @@ function CvUpload() {
     setIsProcessing(true);
     
     try {
-      // 1. Analyze CV (Now uses Gemini to generate a profile)
-      const atsResult = await analyzeCv(file);
-      setCvData(atsResult);
+      // Save raw file as base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result;
+        setCvFile({
+          name: file.name,
+          type: file.type,
+          data: base64Data
+        });
 
-      // 2. Generate Tailored Questions based on Job Title AND CV background
-      const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language);
-      if (dynamicQuestions && dynamicQuestions.length > 0) {
-        setQuestions(dynamicQuestions);
-      }
+        // 1. Analyze CV (Now uses Gemini to generate a profile)
+        const atsResult = await analyzeCv(file);
+        setCvData(atsResult);
+
+        // 2. Generate Tailored Questions based on Job Title AND CV background
+        const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language);
+        if (dynamicQuestions && dynamicQuestions.length > 0) {
+          setQuestions(dynamicQuestions);
+        }
+        
+        setIsProcessing(false);
+        navigate('/interview');
+      };
+      reader.readAsDataURL(file);
       
-      navigate('/interview');
     } catch (error) {
       console.error("Upload/Generation error:", error);
-    } finally {
       setIsProcessing(false);
     }
   };

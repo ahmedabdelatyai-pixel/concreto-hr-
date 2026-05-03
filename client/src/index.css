@@ -448,3 +448,53 @@ h3 { font-weight: 600; }
     max-width: 90%;
   }
 }
+
+/* ============== Immersive Interview Phase ============== */
+.audio-visualizer {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+}
+
+.visualizer-bar {
+  width: 4px;
+  background-color: var(--color-primary);
+  border-radius: 2px;
+  animation: visualize 1s ease-in-out infinite alternate;
+}
+
+.visualizer-bar:nth-child(1) { height: 30%; animation-delay: 0.1s; }
+.visualizer-bar:nth-child(2) { height: 70%; animation-delay: 0.2s; }
+.visualizer-bar:nth-child(3) { height: 100%; animation-delay: 0.3s; }
+.visualizer-bar:nth-child(4) { height: 50%; animation-delay: 0.4s; }
+.visualizer-bar:nth-child(5) { height: 80%; animation-delay: 0.5s; }
+
+@keyframes visualize {
+  0% { transform: scaleY(0.3); opacity: 0.5; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+.focus-warning {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(239, 68, 68, 0.9);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: white;
+  animation: warningFlash 0.3s ease-in-out;
+}
+
+@keyframes warningFlash {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.timer-urgent {
+  color: var(--color-danger) !important;
+  animation: pulse 1s infinite;
+  font-weight: 800;
+}

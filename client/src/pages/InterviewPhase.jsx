@@ -4,6 +4,32 @@ import { useNavigate } from 'react-router-dom';
 import { useInterviewStore } from '../store/interviewStore';
 import { generateQuestions } from '../services/aiApi';
 
+// Memoized Typewriter to avoid re-running on parent re-renders
+const TypewriterText = ({ text, onComplete }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
+  useEffect(() => {
+    let i = 0;
+    setDisplayedText('');
+    const timer = setInterval(() => {
+      i++;
+      if (i <= text.length) {
+        setDisplayedText(text.slice(0, i));
+      } else {
+        clearInterval(timer);
+        onCompleteRef.current?.();
+      }
+    }, 18);
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return <span>{displayedText}</span>;
+};
+
+
+
 function InterviewPhase() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -13,6 +39,15 @@ function InterviewPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [inputEnabled, setInputEnabled] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Timer & Focus States
+  const [timeLeft, setTimeLeft] = useState(120);
+  const [timerActive, setTimerActive] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [cheatAttempts, setCheatAttempts] = useState(0);
+
+  // Ref to hold the latest handleSend to avoid stale closure inside timer useEffect
+  const handleSendRef = useRef(null);
 
   const addAnswer = useInterviewStore(state => state.addAnswer);
   const candidate = useInterviewStore(state => state.candidate);
@@ -25,67 +60,87 @@ function InterviewPhase() {
 
   const isArabic = i18n.language === 'ar';
   
+  // Anti-Cheat (Focus Loss)
+  useEffect(() => {
+    const handleBlur = () => {
+      if (!isInitializing && timerActive && !showWarning) {
+        setShowWarning(true);
+        setCheatAttempts(prev => prev + 1);
+      }
+    };
+    
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, [isInitializing, timerActive, showWarning]);
+
+  // Timer logic — uses ref to call handleSend to avoid stale closure
+  useEffect(() => {
+    if (!timerActive || showWarning) return;
+    if (timeLeft <= 0) {
+      setTimerActive(false);
+      handleSendRef.current?.(true);
+      return;
+    }
+    const interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft, showWarning]);
+
+  // Auto-scroll
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping, answer]);
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   const startInterview = useCallback((qs) => {
-    // Reset messages to clear any old ones
     setMessages([]);
     const greet = isArabic 
-      ? `مرحباً ${candidate.name || ''}! أنا المحاور الذكي الخاص بشركة كونكريتو ريدي ميكس. سأطرح عليك ١٠ أسئلة لتقييم مهاراتك كـ ${candidate.jobTitle}. أجب بصدق وتفصيل.`
-      : `Hello ${candidate.name || ''}! I'm the AI Interviewer for Concreto Ready Mix. I will ask you 10 questions to evaluate your skills as a ${candidate.jobTitle}. Please answer honestly and in detail.`;
+      ? `مرحباً ${candidate.name || ''}! أنا المحاور الذكي الخاص بكونكريتو. سأطرح عليك ${qs.length} أسئلة لتقييم مهاراتك كـ ${candidate.jobTitle}. أجب بصدق وتفصيل، ولديك دقيقتان لكل سؤال.`
+      : `Hello ${candidate.name || ''}! I'm the AI Interviewer. I will ask you ${qs.length} questions to evaluate your skills as a ${candidate.jobTitle}. You have 2 minutes per question.`;
 
-    setMessages([{ role: 'ai', text: greet }]);
-    setIsTyping(true);
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'ai', text: qs[0] }]);
-      setIsTyping(false);
-      setInputEnabled(true);
-      setIsInitializing(false);
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    }, 1500);
+    setMessages([{ id: Date.now(), role: 'ai', text: greet, typed: false }]);
   }, [candidate.name, candidate.jobTitle, isArabic]);
 
   useEffect(() => {
     const init = async () => {
-      // Logic: If questions are empty OR they belong to a different role (via some check) 
-      // OR we just want to be sure and always re-generate if we are at step 0.
-      
-      console.log("Interview Phase Init. Current Questions Count:", generatedQuestions?.length);
-      
       if (generatedQuestions && generatedQuestions.length >= 10) {
-        console.log("Using existing questions from store.");
         startInterview(generatedQuestions);
       } else if (candidate.jobTitle) {
-        console.log("Generating fresh questions for:", candidate.jobTitle);
         const qs = await generateQuestions(candidate.jobTitle, cvData, i18n.language);
         if (qs && qs.length >= 10) {
           setQuestions(qs);
           startInterview(qs);
         } else {
-          console.warn("AI Generation failed, using safe fallback.");
-          const fallbackQs = isArabic 
+          // Fallback - role-specific basic questions
+          const role = candidate.jobTitle || 'موظف';
+          const fallbackQs = isArabic
             ? [
-                `حدثنا عن خبرتك في مجال ${candidate.jobTitle}.`,
-                "ما هو أكبر تحدي واجهته في عملك السابق؟",
-                "كيف تتعامل مع ضغط العمل والمواعيد النهائية؟",
-                "لماذا تريد الانضمام لشركة كونكريتو؟",
-                "كيف تحافظ على معايير الجودة في عملك؟",
-                "صف لنا موقفاً اختلفت فيه مع زميل وكيف حللته.",
-                "ما هي طريقتك في تنظيم مهامك اليومية؟",
-                "كيف تطور مهاراتك بشكل مستمر؟",
-                "ما الذي يميزك عن غيرك من المتقدمين؟",
-                "أين ترى نفسك بعد 5 سنوات في الشركة؟"
+                `صف لنا يومك النموذجي في وظيفة ${role} - من لحظة وصولك لغاية انتهاء الوردية.`,
+                `ما هي الأدوات أو المعدات التي تعمل عليها يومياً في هذا المجال؟`,
+                `وصف لنا أصعب موقف تقني واجهته في عملك الحالي أو السابق وكيف تعاملت معه.`,
+                `إذا اكتشفت خطأً في عمل زميلك يمكن أن يؤثر على جودة المنتج أو سلامة الموقع، ماذا ستفعل؟`,
+                `كيف تتصرف لو طُلب منك إنجاز عمل بجودة عالية في وقت أقل من المعتاد؟`,
+                `ما هي إجراءات السلامة التي تلتزم بها أولاً قبل بدء أي مهمة في موقع العمل؟`,
+                `هل سبق وأن اختلفت مع مشرفك على قرار تقني؟ كيف تصرفت؟`,
+                `كيف تتعامل مع ضغط العمل الشديد وتعدد المهام في نفس الوقت؟`,
+                `ما الذي تفتقده في مكان عملك الحالي أو السابق وتأمل أن تجده هنا؟`,
+                `لو أعطيناك فرصة لتطوير أي شيء في طريقة عمل قسمك، ما هو أول شيء ستغيره؟`
               ]
             : [
-                `Tell us about your experience as a ${candidate.jobTitle}.`,
-                "What is the biggest challenge you faced in your previous job?",
-                "How do you handle work pressure and tight deadlines?",
-                "Why do you want to join Concreto Ready Mix?",
-                "How do you maintain quality standards in your work?",
-                "Describe a situation where you disagreed with a colleague.",
-                "What is your method for organizing daily tasks?",
-                "How do you continuously develop your skills?",
-                "What sets you apart from other applicants?",
-                "Where do you see yourself in 5 years?"
+                `Walk us through a typical day as a ${role} — from when you arrive until end of shift.`,
+                `What tools, equipment, or software do you use on a daily basis in this role?`,
+                `Describe the most technically challenging situation you faced in your current or previous job and how you resolved it.`,
+                `If you discovered an error in a colleague's work that could affect product quality or site safety, what would you do?`,
+                `How do you handle a situation where you're asked to deliver high-quality work in less time than normal?`,
+                `What are the first safety checks you perform before starting any task on site or at the plant?`,
+                `Have you ever disagreed with your supervisor on a technical decision? How did you handle it?`,
+                `How do you manage multiple urgent tasks at the same time without compromising quality?`,
+                `What is missing from your current workplace that you hope to find here at Concreto?`,
+                `If you were given the chance to improve one process in your department, what would you change and why?`
               ];
           setQuestions(fallbackQs);
           startInterview(fallbackQs);
@@ -95,71 +150,68 @@ function InterviewPhase() {
       }
     };
     init();
-  }, []); // Run once on mount
+  }, []);
 
   const questions = generatedQuestions || [];
 
-  if (isInitializing) {
-    return (
-      <div className="container text-center" style={{ marginTop: '20vh' }}>
-        <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: 'bold' }}>
-          {isArabic ? 'جاري تحضير مقابلة مخصصة لك...' : 'Crafting your personalized interview...'}
-        </div>
-        <p className="text-muted" style={{ marginTop: '1rem' }}>
-          {isArabic ? 'يقوم الذكاء الاصطناعي الآن بتحليل بياناتك وتوليد الأسئلة' : 'Our AI is analyzing your profile to generate relevant questions'}
-        </p>
-        <div className="progress-container" style={{ margin: '2rem auto', width: '50%' }}>
-          <div className="progress-bar" style={{ width: '100%', animation: 'shimmer 2s infinite linear' }}></div>
-        </div>
-      </div>
-    );
-  }
+  const handleTypingComplete = useCallback((msgId) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, typed: true } : m));
+    
+    if (isInitializing) {
+      setTimeout(() => {
+        setIsInitializing(false);
+        setIsTyping(true);
+        setTimeout(() => {
+          setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: questions[0], typed: false }]);
+          setIsTyping(false);
+        }, 900);
+      }, 1200);
+    } else {
+      setInputEnabled(true);
+      setTimerActive(true);
+      setTimeLeft(120);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [isInitializing, questions]);
 
-  const handleSend = () => {
-    if (!answer.trim() || !inputEnabled) return;
+  const handleSend = useCallback((force = false) => {
+    if ((!answer.trim() && !force) || (!inputEnabled && !force)) return;
 
-    const userMsg = answer.trim();
+    const userMsg = answer.trim() || (isArabic ? "[لم يتم تقديم إجابة ضمن الوقت المحدد]" : "[No answer provided in time]");
     addAnswer(questions[currentStep], userMsg);
     
-    // Add user bubble
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: userMsg, typed: true }]);
     setAnswer('');
     setInputEnabled(false);
+    setTimerActive(false);
     setIsTyping(true);
 
     const nextStep = currentStep + 1;
 
     if (nextStep < questions.length) {
-      // Show typing, then next question
       setTimeout(() => {
-        const ack = isArabic
-          ? ['تمام، سؤال تالي:', 'شكراً على إجابتك. السؤال التالي:', 'فهمت. ننتقل للسؤال التالي:']
-          : ['Got it. Next question:', 'Thank you for your answer. Moving on:', 'Understood. Here is your next question:'];
+        const ack = isArabic ? ['شكراً، ننتقل للتالي:', 'ممتاز، السؤال التالي:'] : ['Thank you, moving on:', 'Got it, next question:'];
         const randomAck = ack[Math.floor(Math.random() * ack.length)];
         
-        setMessages(prev => [...prev, { role: 'ai', text: randomAck }]);
-        
-        setTimeout(() => {
-          setMessages(prev => [...prev, { role: 'ai', text: questions[nextStep] }]);
-          setIsTyping(false);
-          setInputEnabled(true);
-          setCurrentStep(nextStep);
-          textareaRef.current?.focus();
-        }, 800);
-      }, 1000);
+        setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: randomAck + " " + questions[nextStep], typed: false }]);
+        setIsTyping(false);
+        setCurrentStep(nextStep);
+      }, 1500);
     } else {
-      // Final message
       setTimeout(() => {
         const finalMsg = isArabic
-          ? 'شكراً جزيلاً على وقتك وإجاباتك. تم إكمال المقابلة بنجاح! سيتم الآن تحليل إجاباتك بواسطة الذكاء الاصطناعي...'
-          : 'Thank you for your time and answers. The interview is now complete! Your answers will now be analyzed by our AI system...';
-        setMessages(prev => [...prev, { role: 'ai', text: finalMsg }]);
+          ? 'تم إكمال المقابلة بنجاح! سيتم الآن تقييم إجاباتك...'
+          : 'Interview complete! Analyzing your answers...';
+        setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: finalMsg, typed: false }]);
         setIsTyping(false);
         
-        setTimeout(() => navigate('/completion'), 2500);
+        setTimeout(() => navigate('/completion'), 3500);
       }, 1500);
     }
-  };
+  }, [answer, inputEnabled, currentStep, questions, isArabic, addAnswer, navigate]);
+
+  // Keep the ref always pointing to the latest handleSend
+  useEffect(() => { handleSendRef.current = handleSend; }, [handleSend]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -168,78 +220,135 @@ function InterviewPhase() {
     }
   };
 
-  const progressPercentage = ((currentStep + 1) / questions.length) * 100;
+  if (isInitializing && messages.length === 0) {
+    return (
+      <div className="container text-center" style={{ marginTop: '20vh' }}>
+        <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: 'bold' }}>
+          {isArabic ? 'يتم الاتصال بالمحاور الذكي...' : 'Connecting to AI Interviewer...'}
+        </div>
+        <div className="progress-container" style={{ margin: '2rem auto', width: '50%' }}>
+          <div className="progress-bar" style={{ width: '100%', animation: 'shimmer 2s infinite linear' }}></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#050a14' }}>
       
+      {/* Anti-Cheat Warning */}
+      {showWarning && (
+        <div className="focus-warning">
+          <h1 style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚠️</h1>
+          <h2>{isArabic ? 'تحذير تشتت أو خروج من الشاشة!' : 'Focus Warning!'}</h2>
+          <p style={{ fontSize: '1.2rem', marginBottom: '2rem', textAlign: 'center', maxWidth: '600px' }}>
+            {isArabic 
+              ? `هذه مقابلة رسمية، يرجى عدم مغادرة الشاشة للبحث عن إجابات. (تم رصد ${cheatAttempts} محاولات خروج)`
+              : `This is an official interview. Please do not leave this screen or open other tabs. (${cheatAttempts} warnings recorded)`}
+          </p>
+          <button className="btn btn-primary" onClick={() => setShowWarning(false)}>
+            {isArabic ? 'أعتذر، سأتابع المقابلة بتركيز' : 'I understand, return to interview'}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
-        padding: '1rem 1.5rem', borderBottom: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-bg-card)', display: 'flex', alignItems: 'center', gap: '1rem',
+        padding: '1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.05)',
+        backgroundColor: '#0a1120', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5)', zIndex: 10
       }}>
-        <div style={{
-          width: '40px', height: '40px', borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0,
-        }}>🤖</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>
-            {isArabic ? 'المحاور الذكي - كونكريتو' : 'AI Interviewer - Concreto'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              width: '45px', height: '45px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem'
+            }}>🤖</div>
+            <span style={{ position: 'absolute', bottom: 2, right: 2, width: '10px', height: '10px', backgroundColor: 'var(--color-success)', borderRadius: '50%', border: '2px solid #0a1120' }}></span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-success)', display: 'inline-block' }}></span>
-            {isArabic ? 'متصل الآن' : 'Online'}
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '1.1rem', letterSpacing: '0.5px' }}>
+              {isArabic ? 'المحاور الذكي - كونكريتو' : 'AI Interviewer - Concreto'}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>{isArabic ? 'مقابلة حية' : 'Live Interview'}</span>
+              {(!inputEnabled && !isInitializing) && (
+                <div className="audio-visualizer">
+                  <div className="visualizer-bar"></div><div className="visualizer-bar"></div>
+                  <div className="visualizer-bar"></div><div className="visualizer-bar"></div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="text-muted" style={{ fontSize: '0.8rem' }}>
-            {t('interview.question', { current: currentStep + 1, total: questions.length })}
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>
+              {isArabic ? 'السؤال' : 'Question'}
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--color-primary)' }}>
+              {currentStep + 1} <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>/ {questions.length}</span>
+            </div>
+          </div>
+          
+          <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '1.5rem', paddingRight: '1.5rem', minWidth: '120px' }}>
+            <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>
+              {isArabic ? 'الوقت المتبقي' : 'Time Left'}
+            </div>
+            <div className={timeLeft <= 30 ? 'timer-urgent' : ''} style={{ fontWeight: 'bold', fontSize: '1.4rem', fontFamily: 'monospace' }}>
+              {formatTime(timeLeft)}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Progress */}
-      <div className="progress-container" style={{ margin: 0, borderRadius: 0, height: '3px' }}>
-        <div className="progress-bar" style={{ width: `${progressPercentage}%` }}></div>
+      <div style={{ height: '3px', background: 'rgba(255,255,255,0.05)', width: '100%', zIndex: 10 }}>
+        <div style={{ width: `${((currentStep + 1) / questions.length) * 100}%`, height: '100%', background: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))', transition: 'width 0.5s' }}></div>
       </div>
 
       {/* Chat Messages */}
-      <div className="chat-container" style={{ flex: 1 }}>
-        {messages.map((msg, i) => (
-          <div key={i} className={`chat-bubble ${msg.role === 'ai' ? 'chat-bubble-ai' : 'chat-bubble-user'}`}>
-            {msg.text}
+      <div className="chat-container" style={{ flex: 1, padding: '2rem 15%', backgroundImage: 'radial-gradient(circle at center, rgba(252, 163, 17, 0.03) 0%, transparent 70%)', backgroundColor: '#050a14', border: 'none' }}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`chat-bubble ${msg.role === 'ai' ? 'chat-bubble-ai' : 'chat-bubble-user'}`} style={{ fontSize: '1.05rem', padding: '1.2rem 1.5rem', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: '85%' }}>
+            {msg.role === 'ai' && !msg.typed ? (
+              <TypewriterText text={msg.text} onComplete={() => handleTypingComplete(msg.id)} />
+            ) : (
+              msg.text
+            )}
           </div>
         ))}
         
         {isTyping && (
-          <div className="typing-indicator">
+          <div className="typing-indicator" style={{ backgroundColor: 'transparent', padding: '0.5rem 1rem' }}>
             <span></span><span></span><span></span>
           </div>
         )}
         
-        <div ref={chatEndRef}></div>
+        <div ref={chatEndRef} style={{ height: '20px' }}></div>
       </div>
 
       {/* Input Area */}
-      <div className="chat-input-area">
+      <div className="chat-input-area" style={{ padding: '1.5rem 15%', backgroundColor: '#0a1120', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-end', zIndex: 10 }}>
         <textarea
           ref={textareaRef}
-          rows="1"
-          placeholder={isArabic ? 'اكتب إجابتك هنا...' : 'Type your answer here...'}
+          rows="2"
+          placeholder={isArabic ? 'اكتب إجابتك هنا بتركيز (سيتم الإرسال تلقائياً عند انتهاء الوقت)...' : 'Type your answer here...'}
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={!inputEnabled}
-          style={{ opacity: inputEnabled ? 1 : 0.5 }}
+          style={{ opacity: inputEnabled ? 1 : 0.5, fontSize: '1.05rem', padding: '1rem 1.5rem', borderRadius: '16px', backgroundColor: 'rgba(255,255,255,0.03)', color: 'var(--color-text)', border: '1px solid var(--color-border)', flex: 1, resize: 'none' }}
         ></textarea>
         <button 
           className="chat-send-btn"
-          onClick={handleSend}
+          onClick={() => handleSend(false)}
           disabled={!answer.trim() || !inputEnabled}
-          title="Send"
+          style={{ width: '56px', height: '56px', borderRadius: '16px', marginLeft: isArabic ? '0' : '1rem', marginRight: isArabic ? '1rem' : '0' }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>

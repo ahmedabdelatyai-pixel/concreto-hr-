@@ -14,6 +14,11 @@ const applicantSchema = new mongoose.Schema({
     experience_years: Number,
     technical_match: Number,
   },
+  cvFile: {
+    name: { type: String },
+    type: { type: String },
+    data: { type: String } // Base64 string
+  },
   evaluation: {
     scores: {
       behavior: Number,
