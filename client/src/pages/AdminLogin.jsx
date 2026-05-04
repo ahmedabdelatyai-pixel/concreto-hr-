@@ -54,9 +54,22 @@ function AdminLogin() {
           </button>
         </form>
 
+        <div style={{ position: 'relative', margin: '2rem 0', textAlign: 'center' }}>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)' }} />
+          <span style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'var(--color-bg-card)', padding: '0 10px', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>OR</span>
+        </div>
+
+        <button 
+          className="btn btn-outline" 
+          onClick={() => { adminLogin('concreto2025'); navigate('/admin'); }}
+          style={{ width: '100%', padding: '0.9rem', borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+        >
+          🚀 Try Demo Mode
+        </button>
+
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <button className="btn btn-outline" onClick={() => navigate('/')} style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-            ← Back to Main Site
+          <button className="btn btn-outline" onClick={() => navigate('/')} style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', border: 'none' }}>
+            ← Back to Home
           </button>
         </div>
       </div>

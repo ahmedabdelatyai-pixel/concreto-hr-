@@ -147,36 +147,52 @@ function EvaluationResult() {
             </div>
           )}
 
-          {/* Total & Recommendation */}
+          {/* Total & Recommendation Section */}
           <div style={{ 
             display: 'flex', 
-            justifyContent: 'space-between', 
+            justifyContent: 'center', 
             alignItems: 'center', 
-            padding: '1.5rem',
-            backgroundColor: 'var(--color-bg)',
+            flexDirection: 'column',
+            padding: '3rem 1.5rem',
+            background: 'radial-gradient(circle, var(--color-primary-glow) 0%, transparent 80%)',
             borderRadius: 'var(--border-radius)',
-            marginTop: '1rem'
+            marginTop: '1rem',
+            textAlign: 'center',
+            position: 'relative'
           }}>
-            <div>
-              <div className="text-muted">{t('evaluation.total')}</div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: getStatusColor(evaluation.total_score) }}>
-                {evaluation.total_score} / 100
+            <div style={{
+              width: '180px',
+              height: '180px',
+              borderRadius: '50%',
+              border: `8px solid rgba(255,255,255,0.05)`,
+              borderTopColor: getStatusColor(evaluation.total_score),
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+              boxShadow: `0 0 30px ${getStatusColor(evaluation.total_score)}33`
+            }}>
+              <div style={{ fontSize: '3rem', fontWeight: '900', color: getStatusColor(evaluation.total_score) }}>
+                {evaluation.total_score}
               </div>
+              <div className="text-muted" style={{ fontSize: '0.9rem' }}>SCORE</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div className="text-muted">{t('evaluation.status')}</div>
-              <div style={{ 
-                fontSize: '1.5rem', 
-                fontWeight: 'bold', 
-                color: getStatusColor(evaluation.total_score),
-                backgroundColor: 'rgba(255,255,255,0.05)',
-                padding: '0.5rem 1rem',
-                borderRadius: '999px',
-                marginTop: '0.5rem'
-              }}>
-                {evaluation.recommendation}
-              </div>
+
+            <div style={{ 
+              fontSize: '1.8rem', 
+              fontWeight: '900', 
+              color: getStatusColor(evaluation.total_score),
+              letterSpacing: '1px',
+              textTransform: 'uppercase'
+            }}>
+              {evaluation.recommendation}
             </div>
+            <p style={{ color: 'var(--color-text-muted)', marginTop: '0.5rem', maxWidth: '400px' }}>
+              {i18n.language === 'ar' 
+                ? 'تم تحليل إجاباتك بنجاح من قبل نظام الذكاء الاصطناعي بناءً على المعايير الفنية والسلوكية.'
+                : 'Your answers have been successfully analyzed by our AI engine based on technical and behavioral criteria.'}
+            </p>
           </div>
           
         </div>

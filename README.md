@@ -1,16 +1,94 @@
-# React + Vite
+# 🏗️ Concreto AI-HR Recruitment Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A cutting-edge, industrial-grade AI recruitment platform designed specifically for the **Concrete & Construction** industry. This platform automates the initial screening process using advanced Generative AI (Gemini 2.0 Flash) to perform technical interviews, analyze CVs, and provide deep psychological (DISC) and technical insights.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Key Features
 
-## React Compiler
+### 🎙️ Immersive AI Interviewer
+- **Interactive Voice-to-Text**: Candidates can speak their answers using real-time speech recognition.
+- **Dynamic Questioning**: AI generates 10 tailored technical and behavioral questions based on the specific job role and the candidate's CV content.
+- **Anti-Cheat System**: Real-time monitoring of focus loss and tab switching to ensure interview integrity.
+- **Pulse Visualizer**: Modern, immersive UI with audio-visual feedback.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 📄 Intelligent CV Parsing
+- **Real PDF Extraction**: Uses `pdfjs-dist` to read the actual text content of uploaded CVs (not just metadata).
+- **AI Summary**: Generates a professional summary, extracts skills, and calculates a "Technical Match" score instantly.
 
-## Expanding the ESLint configuration
+### 📊 Advanced HR Analytics Dashboard
+- **KPI Overview**: Real-time stats on total applicants, average scores, and "Strong Fit" ratios.
+- **Visual Charts**: Built-in visualization for score distribution, recommendation breakdowns, and applicant volume per job.
+- **Advanced Search & Filtering**: Filter by role, status, or keyword with instant results.
+- **PDF Report Generation**: Download a comprehensive 3-page AI evaluation report for any candidate.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 🔐 Security & SaaS Ready
+- **Demo Mode**: One-click login to showcase the platform capabilities.
+- **Role-Based Routing**: Secure separation between candidate flow and administrative dashboard.
+- **Multi-lingual Support**: Seamless switching between Arabic (RTL) and English (LTR).
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React 18, Vite, Zustand (State Management), i18next, Lucide Icons.
+- **Backend**: Node.js, Express.
+- **Database**: MongoDB Atlas.
+- **AI Engine**: Google Gemini 2.0 Flash API.
+- **Utilities**: PDF.js (Parsing), html2pdf (Reports), Web Speech API.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+- Node.js (v18+)
+- MongoDB Atlas Account
+- Google Gemini API Key
+
+### 2. Installation
+```bash
+# Install root dependencies
+npm install
+
+# Install client and server dependencies
+npm run install-all
+```
+
+### 3. Configuration
+Create a `.env` file in the `server` directory and `client` directory:
+
+**Server (.env):**
+```env
+MONGODB_URI=your_mongodb_uri
+PORT=5000
+```
+
+**Client (.env):**
+```env
+VITE_GEMINI_API_KEY=your_gemini_key
+VITE_API_URL=http://localhost:5000/api
+```
+
+### 4. Run Locally
+```bash
+npm start
+```
+
+---
+
+## 📂 Project Structure
+
+- `/client`: React application (Frontend)
+- `/server`: Express API & MongoDB Models (Backend)
+- `/shared`: Shared types and constants
+
+---
+
+## 📈 Roadmap (Next Steps)
+- [ ] **Multi-Tenancy**: Support for multiple companies on one platform.
+- [ ] **Video Interviews**: Real-time AI analysis of facial expressions.
+- [ ] **Email Automation**: Automated notifications for candidates.
+
+**Developed by Concreto Ready Mix - AI Division**
+

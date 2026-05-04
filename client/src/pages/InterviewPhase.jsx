@@ -46,6 +46,10 @@ function InterviewPhase() {
   const [showWarning, setShowWarning] = useState(false);
   const [cheatAttempts, setCheatAttempts] = useState(0);
 
+  // Speech Recognition State
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef(null);
+
   // Ref to hold the latest handleSend to avoid stale closure inside timer useEffect
   const handleSendRef = useRef(null);
 
@@ -150,7 +154,66 @@ function InterviewPhase() {
       }
     };
     init();
+
+    // Init Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      // Set language based on app language
+      recognitionRef.current.lang = i18n.language === 'ar' ? 'ar-SA' : 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setAnswer(prev => prev + (prev.endsWith(' ') ? '' : ' ') + finalTranscript);
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setIsRecording(false);
+      };
+      
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
   }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (!recognitionRef.current) {
+      alert(isArabic ? "متصفحك لا يدعم التعرف على الصوت" : "Your browser does not support Speech Recognition.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      // Update lang just in case
+      recognitionRef.current.lang = i18n.language === 'ar' ? 'ar-SA' : 'en-US';
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
+  }, [isRecording, isArabic, i18n.language]);
 
   const questions = generatedQuestions || [];
 
@@ -185,6 +248,9 @@ function InterviewPhase() {
     setInputEnabled(false);
     setTimerActive(false);
     setIsTyping(true);
+    if (isRecording) {
+      toggleRecording();
+    }
 
     const nextStep = currentStep + 1;
 
@@ -331,30 +397,106 @@ function InterviewPhase() {
       </div>
 
       {/* Input Area */}
-      <div className="chat-input-area" style={{ padding: '1.5rem 15%', backgroundColor: '#0a1120', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-end', zIndex: 10 }}>
+      <div className="chat-input-area" style={{ 
+        padding: '1.5rem 10%', 
+        backgroundColor: '#0a1120', 
+        borderTop: '1px solid rgba(255,255,255,0.05)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '1rem',
+        zIndex: 10,
+        position: 'relative'
+      }}>
+        {/* Microphone Button */}
+        <button 
+          className={`mic-btn ${isRecording ? 'active animate-pulse' : ''}`}
+          onClick={toggleRecording}
+          disabled={!inputEnabled}
+          style={{ 
+            width: '56px', 
+            height: '56px', 
+            borderRadius: '16px', 
+            backgroundColor: isRecording ? '#ef4444' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: inputEnabled ? 'pointer' : 'not-allowed',
+            transition: 'all 0.3s ease',
+            color: isRecording ? '#fff' : 'var(--color-text)'
+          }}
+          title={isArabic ? 'تحدث' : 'Speak'}
+        >
+          <span style={{ fontSize: '1.4rem' }}>{isRecording ? '⏹️' : '🎤'}</span>
+        </button>
+
         <textarea
           ref={textareaRef}
-          rows="2"
-          placeholder={isArabic ? 'اكتب إجابتك هنا بتركيز (سيتم الإرسال تلقائياً عند انتهاء الوقت)...' : 'Type your answer here...'}
+          rows="1"
+          placeholder={isRecording ? (isArabic ? 'جاري الاستماع...' : 'Listening...') : (isArabic ? 'اكتب إجابتك هنا بتركيز...' : 'Type your answer here...')}
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={!inputEnabled}
-          style={{ opacity: inputEnabled ? 1 : 0.5, fontSize: '1.05rem', padding: '1rem 1.5rem', borderRadius: '16px', backgroundColor: 'rgba(255,255,255,0.03)', color: 'var(--color-text)', border: '1px solid var(--color-border)', flex: 1, resize: 'none' }}
+          style={{ 
+            opacity: inputEnabled ? 1 : 0.5, 
+            fontSize: '1.05rem', 
+            padding: '1rem 1.5rem', 
+            borderRadius: '16px', 
+            backgroundColor: 'rgba(255,255,255,0.03)', 
+            color: 'var(--color-text)', 
+            border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`, 
+            flex: 1, 
+            resize: 'none',
+            maxHeight: '120px',
+            transition: 'border-color 0.3s ease'
+          }}
         ></textarea>
+
         <button 
           className="chat-send-btn"
           onClick={() => handleSend(false)}
           disabled={!answer.trim() || !inputEnabled}
-          style={{ width: '56px', height: '56px', borderRadius: '16px', marginLeft: isArabic ? '0' : '1rem', marginRight: isArabic ? '1rem' : '0' }}
+          style={{ 
+            width: '56px', 
+            height: '56px', 
+            borderRadius: '16px', 
+            backgroundColor: 'var(--color-primary)',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: (answer.trim() && inputEnabled) ? 'pointer' : 'not-allowed',
+            opacity: (answer.trim() && inputEnabled) ? 1 : 0.5
+          }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
         </button>
+
+        {/* Recording Visualizer Overlay */}
+        {isRecording && (
+          <div style={{ 
+            position: 'absolute', 
+            top: '-30px', 
+            left: '50%', 
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(239, 68, 68, 0.9)',
+            color: '#fff',
+            padding: '4px 16px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: '600',
+            pointerEvents: 'none'
+          }}>
+            {isArabic ? 'جاري تحويل صوتك لنص...' : 'Transcribing voice to text...'}
+          </div>
+        )}
       </div>
     </div>
+
   );
 }
 

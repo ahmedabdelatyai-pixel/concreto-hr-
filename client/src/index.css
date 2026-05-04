@@ -1,36 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@300;400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Cairo:wght@300;400;600;700&display=swap');
 
 :root {
-  /* Premium Industrial Palette */
+  /* Premium Industrial Palette - SaaS Optimized */
   --color-primary: #fca311;
   --color-primary-dark: #e8950f;
   --color-primary-glow: rgba(252, 163, 17, 0.15);
   --color-secondary: #e76f51;
-  --color-bg: #0b1120;
-  --color-bg-card: #111827;
-  --color-bg-elevated: #1a2332;
-  --color-text: #e5e7eb;
-  --color-text-muted: #6b7280;
-  --color-border: #1f2937;
+  --color-bg: #050a14; /* Deeper dark */
+  --color-bg-card: #0a1120;
+  --color-bg-elevated: #111a2e;
+  --color-text: #f9fafb;
+  --color-text-muted: #9ca3af;
+  --color-border: rgba(255, 255, 255, 0.08);
   --color-success: #10b981;
   --color-danger: #ef4444;
   --color-info: #3b82f6;
 
   /* Typography */
-  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   
   /* Layout */
-  --border-radius: 12px;
-  --border-radius-sm: 8px;
+  --border-radius: 16px;
+  --border-radius-sm: 10px;
   --transition-speed: 0.3s;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.3);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 30px rgba(252, 163, 17, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 10px 30px -10px rgba(0,0,0,0.5);
+  --shadow-lg: 0 20px 50px -12px rgba(0,0,0,0.6);
+  --shadow-glow: 0 0 40px rgba(252, 163, 17, 0.12);
 }
 
 [dir="rtl"] {
-  --font-family: 'Cairo', 'Inter', system-ui, sans-serif;
+  --font-family: 'Cairo', 'Outfit', system-ui, sans-serif;
 }
 
 * {
