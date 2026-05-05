@@ -45,6 +45,7 @@ let lastDbError = null;
 
 app.get('/api/health', (req, res) => res.json({ 
   status: 'ok', 
+  version: '1.0.5',
   mode: useLocalDB ? 'local' : 'cloud',
   dbConnected: mongoose.connection.readyState === 1,
   readyState: mongoose.connection.readyState,
