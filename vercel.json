@@ -10,7 +10,7 @@
       "use": "@vercel/static-build"
     }
   ],
-  "outputDirectory": "client/dist",
+  "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
