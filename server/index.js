@@ -156,30 +156,52 @@ app.patch('/api/applicants/:id/status', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// Connection logic
-if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-  })
-    .then(() => {
+// Connection logic for Serverless
+let isConnecting = false;
+
+const connectDB = async () => {
+  if (useLocalDB) return;
+  if (mongoose.connection.readyState >= 1) return;
+  
+  if (!MONGODB_URI) {
+    console.error('FATAL ERROR: MONGODB_URI is not defined.');
+    if (process.env.NODE_ENV !== 'production') {
+      useLocalDB = true;
+      return;
+    }
+    throw new Error('Database connection string missing in production.');
+  }
+
+  if (!isConnecting) {
+    isConnecting = true;
+    try {
+      mongoose.set('bufferCommands', false); // Disable hanging
+      await mongoose.connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+      });
       console.log('Connected to MongoDB Atlas');
       useLocalDB = false;
-    })
-    .catch(err => {
+    } catch (err) {
       console.error('Cloud DB connection failed:', err.message);
       if (process.env.NODE_ENV !== 'production') {
-        console.log('Switching to LOCAL DB mode.');
         useLocalDB = true;
       }
-    });
-} else {
-  if (process.env.NODE_ENV !== 'production') {
-    useLocalDB = true;
-  } else {
-    console.error('FATAL ERROR: MONGODB_URI is not defined in production.');
+    } finally {
+      isConnecting = false;
+    }
   }
-}
+};
+
+// Apply connectDB middleware to all API routes
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ message: 'Database connection error: ' + err.message });
+  }
+});
 
 // Export for Vercel
 module.exports = app;
