@@ -11,6 +11,8 @@
       "config": { "distDir": "dist" }
     }
   ],
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
       "source": "/api/:path*",
