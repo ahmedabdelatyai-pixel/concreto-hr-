@@ -41,12 +41,15 @@ const writeLocal = (data) => {
 // Health Check
 app.get('/', (req, res) => res.send('TalentFlow AI API is running...'));
 app.get('/api', (req, res) => res.send('TalentFlow AI API is running (at /api)...'));
+let lastDbError = null;
+
 app.get('/api/health', (req, res) => res.json({ 
   status: 'ok', 
   mode: useLocalDB ? 'local' : 'cloud',
   dbConnected: mongoose.connection.readyState === 1,
   readyState: mongoose.connection.readyState,
-  mongodbUriExists: !!process.env.MONGODB_URI
+  mongodbUriExists: !!process.env.MONGODB_URI,
+  lastError: lastDbError
 }));
 
 // Job Routes
@@ -178,14 +181,16 @@ const connectDB = async () => {
     isConnecting = true;
     try {
       mongoose.set('bufferCommands', false); // Disable hanging
-      await mongoose.connect(MONGODB_URI, {
+      await mongoose.connect(MONGODB_URI.trim(), {
         serverSelectionTimeoutMS: 5000,
         connectTimeoutMS: 5000,
       });
       console.log('Connected to MongoDB Atlas');
       useLocalDB = false;
+      lastDbError = null;
     } catch (err) {
       console.error('Cloud DB connection failed:', err.message);
+      lastDbError = err.message;
       if (process.env.NODE_ENV !== 'production') {
         useLocalDB = true;
       }
