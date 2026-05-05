@@ -43,15 +43,17 @@ app.get('/', (req, res) => res.send('TalentFlow AI API is running...'));
 app.get('/api', (req, res) => res.send('TalentFlow AI API is running (at /api)...'));
 let lastDbError = null;
 
-app.get('/api/health', (req, res) => res.json({ 
-  status: 'ok', 
-  version: '1.0.5',
-  mode: useLocalDB ? 'local' : 'cloud',
-  dbConnected: mongoose.connection.readyState === 1,
-  readyState: mongoose.connection.readyState,
-  mongodbUriExists: !!process.env.MONGODB_URI,
-  lastError: lastDbError
-}));
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    version: '1.0.7',
+    mode: useLocalDB ? 'local' : 'cloud',
+    dbConnected: mongoose.connection.readyState === 1,
+    readyState: mongoose.connection.readyState,
+    mongodbUriExists: !!process.env.MONGODB_URI,
+    lastError: lastDbError
+  });
+});
 
 // Job Routes
 app.get('/api/jobs', async (req, res) => {
