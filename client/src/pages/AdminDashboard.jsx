@@ -94,7 +94,8 @@ function AdminDashboard() {
       setNewJob({ title_en: '', title_ar: '', department: '', customQuestions: [] });
       setShowAddJob(false);
     } catch (err) {
-      alert(t('Failed to save job. Please try again.', 'فشل حفظ الوظيفة. حاول مرة أخرى.'));
+      const serverMsg = err.response?.data?.message || err.message;
+      alert(`${t('Failed to save job.', 'فشل حفظ الوظيفة.')}\n\nError Details:\n${serverMsg}\n\n(This usually means MongoDB Atlas Network Access is blocking Vercel. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas)`);
     }
   };
 

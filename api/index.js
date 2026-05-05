@@ -55,6 +55,11 @@ app.use('/api', async (req, res, next) => {
   next();
 });
 
+// Base Routes for Frontend Health Check
+app.get('/', (req, res) => res.send('TalentFlow API'));
+app.get('/api', (req, res) => res.send('TalentFlow API is Online'));
+app.get('/api/', (req, res) => res.send('TalentFlow API is Online'));
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ 
