@@ -9,16 +9,64 @@ const api = axios.create({
   },
 });
 
+// Add token to every request
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Handle response errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const applicantService = {
-  getAll: () => api.get('/applicants'),
+  getAll: (query = {}) => api.get('/applicants', { params: query }),
+  getOne: (id) => api.get(`/applicants/${id}`),
   create: (data) => api.post('/applicants', data),
-  clear: () => api.delete('/applicants/clear'),
+  update: (id, data) => api.put(`/applicants/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/applicants/${id}/status`, { status }),
+  delete: (id) => api.delete(`/applicants/${id}`),
+  clear: () => api.delete('/applicants/clear/all'),
+  getStats: () => api.get('/applicants/stats'),
 };
 
 export const jobService = {
-  getAll: () => api.get('/jobs'),
+  getAll: (query = {}) => api.get('/jobs', { params: query }),
+  getOne: (id) => api.get(`/jobs/${id}`),
   create: (data) => api.post('/jobs', data),
+  update: (id, data) => api.put(`/jobs/${id}`, data),
+  updateStatus: (id, active) => api.patch(`/jobs/${id}/status`, { active }),
   delete: (id) => api.delete(`/jobs/${id}`),
+};
+
+export const companyService = {
+  getProfile: () => api.get('/company/profile'),
+  updateProfile: (data) => api.put('/company/profile', data),
+  getStats: () => api.get('/company/stats'),
+  getSubscription: () => api.get('/company/subscription'),
+  upgrade: (plan) => api.post('/company/upgrade', { plan }),
+};
+
+export const userService = {
+  getMe: () => api.get('/auth/me'),
+  getCompanyUsers: () => api.get('/auth/company/users'),
+  createUser: (data) => api.post('/auth/company/users', data),
+  updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
+  disableUser: (id) => api.patch(`/auth/users/${id}/disable`),
 };
 
 export default api;

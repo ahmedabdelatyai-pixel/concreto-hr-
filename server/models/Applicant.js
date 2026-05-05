@@ -1,9 +1,15 @@
 const mongoose = require('mongoose');
 
 const applicantSchema = new mongoose.Schema({
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true
+  },
   candidate: {
     name: { type: String, required: true },
     email: { type: String, required: true },
+    phone: { type: String },
     role: { type: String },
     jobTitle: { type: String },
   },

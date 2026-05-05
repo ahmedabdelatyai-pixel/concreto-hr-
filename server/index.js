@@ -4,219 +4,212 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const fs = require('fs');
 const path = require('path');
 
+// Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-const DB_PATH = path.join(__dirname, 'database.json');
 
-// Initialize Local DB if doesn't exist (Only in local development)
-if (process.env.NODE_ENV !== 'production' && !fs.existsSync(DB_PATH)) {
-  fs.writeFileSync(DB_PATH, JSON.stringify({ applicants: [], jobs: [] }, null, 2));
-}
+// ============== MIDDLEWARE ==============
 
-// Middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+// Security Middleware
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(morgan('dev'));
 
-// Global State (for Local Fallback)
-let useLocalDB = false;
+// CORS Configuration (More secure)
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 3600
+};
+app.use(cors(corsOptions));
 
-// Helpers for Local DB
-const readLocal = () => JSON.parse(fs.readFileSync(DB_PATH));
-const writeLocal = (data) => {
-  if (process.env.NODE_ENV === 'production') return;
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+// Rate limiting
+const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
+app.use('/api/auth/', authLimiter);
+app.use('/api/', apiLimiter);
+
+// Body Parser
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Logging
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length]'));
+
+// ============== DATABASE CONNECTION ==============
+
+let lastDbError = null;
+let dbConnected = false;
+
+const connectDB = async () => {
+  if (dbConnected) return;
+
+  const MONGODB_URI = process.env.MONGODB_URI;
+
+  if (!MONGODB_URI) {
+    console.warn('⚠️ MONGODB_URI not defined - using local development mode');
+    return;
+  }
+
+  try {
+    mongoose.set('bufferCommands', false);
+    await mongoose.connect(MONGODB_URI.trim(), {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 5000,
+    });
+    
+    console.log('✅ Connected to MongoDB Atlas');
+    dbConnected = true;
+    lastDbError = null;
+    
+    // Create indexes
+    const User = require('./models/User');
+    const Company = require('./models/Company');
+    const Job = require('./models/Job');
+    const Applicant = require('./models/Applicant');
+    
+    await User.collection.createIndex({ username: 1, company: 1 }, { unique: true });
+    await User.collection.createIndex({ email: 1 }, { unique: true });
+    await Company.collection.createIndex({ email: 1 }, { unique: true });
+    await Job.collection.createIndex({ company: 1 });
+    await Applicant.collection.createIndex({ company: 1 });
+
+  } catch (err) {
+    console.error('❌ Database connection error:', err.message);
+    lastDbError = err.message;
+    dbConnected = false;
+  }
 };
 
-// Routes
+// ============== ROUTES ==============
+
 // Health Check
-app.get('/', (req, res) => res.send('TalentFlow AI API is running...'));
-app.get('/api', (req, res) => res.send('TalentFlow AI API is running (at /api)...'));
-let lastDbError = null;
+app.get('/', (req, res) => {
+  res.send('🚀 TalentFlow HR Platform API is running...');
+});
+
+app.get('/api', (req, res) => {
+  res.send('🚀 TalentFlow HR Platform API (at /api)...');
+});
 
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    version: '1.0.7',
-    mode: useLocalDB ? 'local' : 'cloud',
-    dbConnected: mongoose.connection.readyState === 1,
-    readyState: mongoose.connection.readyState,
-    mongodbUriExists: !!process.env.MONGODB_URI,
-    lastError: lastDbError
+  res.json({
+    status: dbConnected ? 'healthy' : 'degraded',
+    version: '2.0.0',
+    dbConnected,
+    mongoConnected: mongoose.connection.readyState === 1,
+    lastError: lastDbError || null,
+    timestamp: new Date().toISOString()
   });
 });
 
-// Job Routes
-app.get('/api/jobs', async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  if (useLocalDB) return res.json(readLocal().jobs);
-  try {
-    const Job = require('./models/Job');
-    res.json(await Job.find());
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
-
-app.post('/api/jobs', async (req, res) => {
-  if (useLocalDB) {
-    const db = readLocal();
-    const newJob = { ...req.body, _id: Date.now().toString(), createdAt: new Date() };
-    db.jobs.push(newJob);
-    writeLocal(db);
-    return res.status(201).json(newJob);
-  }
-  try {
-    const Job = require('./models/Job');
-    const job = new Job(req.body);
-    res.status(201).json(await job.save());
-  } catch (err) { res.status(400).json({ message: err.message }); }
-});
-
-app.delete('/api/jobs/:id', async (req, res) => {
-  if (useLocalDB) {
-    const db = readLocal();
-    db.jobs = db.jobs.filter(j => j._id !== req.params.id);
-    writeLocal(db);
-    return res.json({ message: 'Job deleted' });
-  }
-  try {
-    const Job = require('./models/Job');
-    await Job.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Job deleted' });
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
+// Auth Routes
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
 
 // Applicant Routes
-app.get('/api/applicants', async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  if (useLocalDB) return res.json(readLocal().applicants.sort((a,b) => new Date(b.appliedAt) - new Date(a.appliedAt)));
-  try {
-    const Applicant = require('./models/Applicant');
-    res.json(await Applicant.find().sort({ appliedAt: -1 }));
-  } catch (err) { res.status(500).json({ message: err.message }); }
+const applicantRoutes = require('./routes/applicantRoutes');
+app.use('/api/applicants', applicantRoutes);
+
+// Job Routes
+const jobRoutes = require('./routes/jobRoutes');
+app.use('/api/jobs', jobRoutes);
+
+// Company Routes
+const companyRoutes = require('./routes/companyRoutes');
+app.use('/api/company', companyRoutes);
+
+// ============== ERROR HANDLING ==============
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({
+    message: 'المسار غير موجود | Route not found',
+    path: req.path
+  });
 });
 
-app.post('/api/applicants', async (req, res) => {
-  if (useLocalDB) {
-    const db = readLocal();
-    const newApp = { ...req.body, _id: Date.now().toString(), appliedAt: new Date() };
-    db.applicants.push(newApp);
-    writeLocal(db);
-    return res.status(201).json(newApp);
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      message: 'خطأ في التحقق من البيانات | Validation error',
+      errors: Object.values(err.errors).map(e => e.message)
+    });
   }
-  try {
-    const Applicant = require('./models/Applicant');
-    console.log('Received applicant:', req.body.candidate?.name);
-    console.log('Has cvFile in body?', !!req.body.cvFile);
-    const app = new Applicant(req.body);
-    const saved = await app.save();
-    console.log('Saved with cvFile?', !!saved.cvFile);
-    res.status(201).json(saved);
-  } catch (err) { res.status(400).json({ message: err.message }); }
-});
 
-app.delete('/api/applicants/clear', async (req, res) => {
-  if (useLocalDB) {
-    const db = readLocal();
-    db.applicants = [];
-    writeLocal(db);
-    return res.json({ message: 'Cleared' });
+  // Mongoose duplicate key error
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyPattern)[0];
+    return res.status(400).json({
+      message: `${field} موجود بالفعل | ${field} already exists`
+    });
   }
-  try {
-    const Applicant = require('./models/Applicant');
-    await Applicant.deleteMany({});
-    res.json({ message: 'Cleared' });
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
 
-app.patch('/api/applicants/:id/status', async (req, res) => {
-  const { status } = req.body;
-  if (useLocalDB) {
-    const db = readLocal();
-    const index = db.applicants.findIndex(a => a._id === req.params.id);
-    if (index !== -1) {
-      db.applicants[index].status = status;
-      writeLocal(db);
-      return res.json(db.applicants[index]);
-    }
-    return res.status(404).json({ message: 'Not found' });
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      message: 'رمز غير صحيح | Invalid token'
+    });
   }
-  try {
-    const Applicant = require('./models/Applicant');
-    const updated = await Applicant.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    res.json(updated);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+
+  // Default error
+  res.status(err.status || 500).json({
+    message: err.message || 'خطأ في الخادم | Server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
 });
 
-// Server Start & DB Connection
+// ============== SERVER START ==============
+
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI;
 
-// Connection logic for Serverless
-let isConnecting = false;
+const startServer = async () => {
+  try {
+    // Try to connect to MongoDB
+    await connectDB();
 
-const connectDB = async () => {
-  if (useLocalDB) return;
-  if (mongoose.connection.readyState >= 1) return;
-  
-  if (!MONGODB_URI) {
-    console.error('FATAL ERROR: MONGODB_URI is not defined.');
-    if (process.env.NODE_ENV !== 'production') {
-      useLocalDB = true;
-      return;
-    }
-    throw new Error('Database connection string missing in production.');
-  }
+    // Start server regardless of DB connection (local development mode)
+    const server = app.listen(PORT, () => {
+      console.log(`
+╔════════════════════════════════════════╗
+║   🚀 TalentFlow HR Platform API        ║
+║   v2.0.0 - Enterprise Edition          ║
+╚════════════════════════════════════════╝
+Server running on: http://localhost:${PORT}
+API Endpoint: http://localhost:${PORT}/api
+Status: ${dbConnected ? '✅ Production Mode' : '⏸️ Development Mode (Local DB)'}
+Environment: ${process.env.NODE_ENV || 'development'}
+      `);
+    });
 
-  if (!isConnecting) {
-    isConnecting = true;
-    try {
-      mongoose.set('bufferCommands', false); // Disable hanging
-      await mongoose.connect(MONGODB_URI.trim(), {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received, shutting down gracefully...');
+      server.close(() => {
+        console.log('Server closed');
+        if (mongoose.connection.readyState === 1) {
+          mongoose.connection.close();
+        }
+        process.exit(0);
       });
-      console.log('Connected to MongoDB Atlas');
-      useLocalDB = false;
-      lastDbError = null;
-    } catch (err) {
-      console.error('Cloud DB connection failed:', err.message);
-      lastDbError = err.message;
-      if (process.env.NODE_ENV !== 'production') {
-        useLocalDB = true;
-      }
-    } finally {
-      isConnecting = false;
-    }
+    });
+
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
   }
 };
 
-// Apply connectDB middleware to all API routes
-app.use('/api', async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    res.status(500).json({ message: 'Database connection error: ' + err.message });
-  }
-});
+startServer();
 
-// Export for Vercel
 module.exports = app;
-
-// Only listen if not running as a Vercel function
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT} (Mode: ${useLocalDB ? 'Local' : 'Cloud'})`));
-}
