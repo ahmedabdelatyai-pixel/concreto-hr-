@@ -44,7 +44,9 @@ app.get('/api', (req, res) => res.send('TalentFlow AI API is running (at /api)..
 app.get('/api/health', (req, res) => res.json({ 
   status: 'ok', 
   mode: useLocalDB ? 'local' : 'cloud',
-  dbConnected: mongoose.connection.readyState === 1
+  dbConnected: mongoose.connection.readyState === 1,
+  readyState: mongoose.connection.readyState,
+  mongodbUriExists: !!process.env.MONGODB_URI
 }));
 
 // Job Routes
