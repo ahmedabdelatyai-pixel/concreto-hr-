@@ -49,22 +49,20 @@ const connectDB = async () => {
   }
 };
 
-// Apply connectDB to all /api routes
-app.use('/api', async (req, res, next) => {
+// Apply connectDB to all routes
+app.use(async (req, res, next) => {
   await connectDB();
   next();
 });
 
 // Base Routes for Frontend Health Check
-app.get('/', (req, res) => res.send('TalentFlow API'));
-app.get('/api', (req, res) => res.send('TalentFlow API is Online'));
-app.get('/api/', (req, res) => res.send('TalentFlow API is Online'));
+app.get(['/', '/api', '/api/'], (req, res) => res.send('TalentFlow API is Online'));
 
 // Health Check
-app.get('/api/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({ 
     status: 'ok', 
-    version: '1.0.8',
+    version: '1.0.9',
     dbConnected: mongoose.connection.readyState === 1,
     readyState: mongoose.connection.readyState,
     mongodbUriExists: !!MONGODB_URI,
@@ -73,14 +71,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Job Routes
-app.get('/api/jobs', async (req, res) => {
+app.get(['/jobs', '/api/jobs'], async (req, res) => {
   try {
     const Job = require('../server/models/Job');
     res.json(await Job.find());
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-app.post('/api/jobs', async (req, res) => {
+app.post(['/jobs', '/api/jobs'], async (req, res) => {
   try {
     const Job = require('../server/models/Job');
     const job = new Job(req.body);
@@ -88,7 +86,7 @@ app.post('/api/jobs', async (req, res) => {
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-app.delete('/api/jobs/:id', async (req, res) => {
+app.delete(['/jobs/:id', '/api/jobs/:id'], async (req, res) => {
   try {
     const Job = require('../server/models/Job');
     await Job.findByIdAndDelete(req.params.id);
@@ -97,14 +95,14 @@ app.delete('/api/jobs/:id', async (req, res) => {
 });
 
 // Applicant Routes
-app.get('/api/applicants', async (req, res) => {
+app.get(['/applicants', '/api/applicants'], async (req, res) => {
   try {
     const Applicant = require('../server/models/Applicant');
     res.json(await Applicant.find().sort({ appliedAt: -1 }));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-app.post('/api/applicants', async (req, res) => {
+app.post(['/applicants', '/api/applicants'], async (req, res) => {
   try {
     const Applicant = require('../server/models/Applicant');
     const app = new Applicant(req.body);
@@ -112,7 +110,7 @@ app.post('/api/applicants', async (req, res) => {
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-app.patch('/api/applicants/:id/status', async (req, res) => {
+app.patch(['/applicants/:id/status', '/api/applicants/:id/status'], async (req, res) => {
   const { status } = req.body;
   try {
     const Applicant = require('../server/models/Applicant');
