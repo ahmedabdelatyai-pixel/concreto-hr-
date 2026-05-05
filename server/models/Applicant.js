@@ -41,7 +41,14 @@ const applicantSchema = new mongoose.Schema({
     question: String,
     answer: String
   }],
-  appliedAt: { type: Date, default: Date.now }
+  appliedAt: { type: Date, default: Date.now },
+  status: { 
+    type: String, 
+    enum: ['Pending', 'Shortlisted', 'Hired', 'Rejected'], 
+    default: 'Pending' 
+  },
+  source: { type: String, default: 'Website' },
+  jobId: { type: String }
 });
 
 module.exports = mongoose.model('Applicant', applicantSchema);

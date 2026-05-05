@@ -34,6 +34,7 @@ export const useAdminStore = create(
           set((state) => ({ jobs: [...state.jobs, res.data] }));
         } catch (err) {
           console.error("Error adding job:", err);
+          throw err;
         }
       },
 

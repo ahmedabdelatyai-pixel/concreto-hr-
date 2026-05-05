@@ -143,7 +143,7 @@ function InterviewPhase() {
                 `What are the first safety checks you perform before starting any task on site or at the plant?`,
                 `Have you ever disagreed with your supervisor on a technical decision? How did you handle it?`,
                 `How do you manage multiple urgent tasks at the same time without compromising quality?`,
-                `What is missing from your current workplace that you hope to find here at Concreto?`,
+                `What is missing from your current workplace that you hope to find here at TalentFlow?`,
                 `If you were given the chance to improve one process in your department, what would you change and why?`
               ];
           setQuestions(fallbackQs);
@@ -335,7 +335,7 @@ function InterviewPhase() {
           </div>
           <div>
             <div style={{ fontWeight: '700', fontSize: '1.1rem', letterSpacing: '0.5px' }}>
-              {isArabic ? 'المحاور الذكي - كونكريتو' : 'AI Interviewer - Concreto'}
+              {isArabic ? 'المحاور الذكي - TalentFlow' : 'AI Interviewer - TalentFlow'}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>{isArabic ? 'مقابلة حية' : 'Live Interview'}</span>

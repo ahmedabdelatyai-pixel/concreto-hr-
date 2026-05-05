@@ -1,4 +1,4 @@
-# 🏗️ Concreto AI-HR Recruitment Platform
+# 🏗️ TalentFlow AI-HR Recruitment Platform
 
 A cutting-edge, industrial-grade AI recruitment platform designed specifically for the **Concrete & Construction** industry. This platform automates the initial screening process using advanced Generative AI (Gemini 2.0 Flash) to perform technical interviews, analyze CVs, and provide deep psychological (DISC) and technical insights.
 
@@ -90,5 +90,5 @@ npm start
 - [ ] **Video Interviews**: Real-time AI analysis of facial expressions.
 - [ ] **Email Automation**: Automated notifications for candidates.
 
-**Developed by Concreto Ready Mix - AI Division**
+**Developed by TalentFlow - AI Solutions**
 

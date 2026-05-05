@@ -1,10 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminStore } from '../store/adminStore';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
+  const t = (en, ar) => isAr ? ar : en;
   const reportRef = useRef(null);
   const isAdminLoggedIn = useAdminStore(state => state.isAdminLoggedIn);
   const adminLogout = useAdminStore(state => state.adminLogout);
@@ -19,7 +23,13 @@ function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('analytics');
   const [showAddJob, setShowAddJob] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
-  const [newJob, setNewJob] = useState({ title_en: '', title_ar: '', department: '' });
+  const [newJob, setNewJob] = useState({ 
+    title_en: '', 
+    title_ar: '', 
+    department: '',
+    customQuestions: [] 
+  });
+  const [questionInput, setQuestionInput] = useState({ text: '', category: 'Technical' });
   const [serverStatus, setServerStatus] = useState('checking');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -28,7 +38,7 @@ function AdminDashboard() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        await axios.get('http://localhost:5000/');
+        await axios.get('/api/');
         setServerStatus('online');
       } catch (e) {
         setServerStatus('offline');
@@ -50,7 +60,7 @@ function AdminDashboard() {
 
     const opt = {
       margin: 10,
-      filename: `Concreto_Report_${selectedApplicant.candidate.name.replace(/\s+/g, '_')}.pdf`,
+      filename: `TalentFlow_Report_${selectedApplicant.candidate.name.replace(/\s+/g, '_')}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -60,11 +70,11 @@ function AdminDashboard() {
     window.html2pdf().from(element).set(opt).save();
   };
 
-  const handleDownloadCV = () => {
-    if (selectedApplicant?.cvFile?.data) {
+  const handleDownloadCV = (app = selectedApplicant) => {
+    if (app?.cvFile?.data) {
       const a = document.createElement('a');
-      a.href = selectedApplicant.cvFile.data;
-      a.download = selectedApplicant.cvFile.name || 'Candidate_CV';
+      a.href = app.cvFile.data;
+      a.download = app.cvFile.name || 'Candidate_CV';
       a.click();
     } else {
       alert('No CV file available for this applicant.');
@@ -77,11 +87,31 @@ function AdminDashboard() {
     return null;
   }
 
-  const handleAddJob = (e) => {
+  const handleAddJob = async (e) => {
     e.preventDefault();
-    addJob(newJob);
-    setNewJob({ title_en: '', title_ar: '', department: '' });
-    setShowAddJob(false);
+    try {
+      await addJob(newJob);
+      setNewJob({ title_en: '', title_ar: '', department: '', customQuestions: [] });
+      setShowAddJob(false);
+    } catch (err) {
+      alert(t('Failed to save job. Please try again.', 'فشل حفظ الوظيفة. حاول مرة أخرى.'));
+    }
+  };
+
+  const addQuestionToNewJob = () => {
+    if (!questionInput.text) return;
+    setNewJob({
+      ...newJob,
+      customQuestions: [...newJob.customQuestions, { ...questionInput }]
+    });
+    setQuestionInput({ text: '', category: 'Technical' });
+  };
+
+  const removeQuestionFromNewJob = (idx) => {
+    setNewJob({
+      ...newJob,
+      customQuestions: newJob.customQuestions.filter((_, i) => i !== idx)
+    });
   };
 
   const handleLogout = () => {
@@ -91,22 +121,26 @@ function AdminDashboard() {
 
   const getJobTitle = (jobId) => {
     const job = jobs.find(j => j._id === jobId);
-    return job ? job.title_en : 'Unknown';
+    return job ? (isAr ? job.title_ar : job.title_en) : (isAr ? 'غير معروف' : 'Unknown');
   };
 
-  const getStatusBadge = (rec) => {
+  const getStatusBadge = (status) => {
     const colors = {
-      'Strong Fit': { bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' },
-      'Potential Fit': { bg: 'rgba(252, 163, 17, 0.15)', color: '#fca311' },
-      'Not Fit': { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' },
-      'Invalid Answers': { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' },
+      'Hired': { bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981', ar: 'تم التوظيف' },
+      'Shortlisted': { bg: 'rgba(252, 163, 17, 0.15)', color: '#fca311', ar: 'قائمة مختصرة' },
+      'Rejected': { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', ar: 'مرفوض' },
+      'Pending': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', ar: 'قيد الانتظار' },
+      'Strong Fit': { bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981', ar: 'ملائم تماماً' },
+      'Potential Fit': { bg: 'rgba(252, 163, 17, 0.15)', color: '#fca311', ar: 'ملائم جزئياً' },
+      'Not Fit': { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', ar: 'غير ملائم' },
+      'Invalid Answers': { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', ar: 'إجابات غير صالحة' },
     };
-    const style = colors[rec] || colors['Not Fit'];
+    const style = colors[status] || colors['Pending'];
     return (
       <span style={{
         padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '600',
         backgroundColor: style.bg, color: style.color,
-      }}>{rec}</span>
+      }}>{isAr ? style.ar : status}</span>
     );
   };
 
@@ -120,7 +154,7 @@ function AdminDashboard() {
     : 0;
   const topJob = jobs.reduce((top, job) => {
     const count = applicants.filter(a => a.jobId === job._id).length;
-    return count > (top.count || 0) ? { title: job.title_en, count } : top;
+    return count > (top.count || 0) ? { title: isAr ? job.title_ar : job.title_en, count } : top;
   }, {});
   const thisWeek = applicants.filter(a => {
     const d = new Date(a.appliedAt);
@@ -139,8 +173,22 @@ function AdminDashboard() {
     return matchSearch && matchStatus && matchJob;
   });
 
+  const handleUpdateStatus = async (applicantId, newStatus) => {
+    try {
+      const response = await axios.patch(`/api/applicants/${applicantId}/status`, { status: newStatus });
+      if (response.status === 200) {
+        // Update local state to avoid refresh
+        useAdminStore.getState().fetchApplicants();
+        setSelectedApplicant(prev => prev ? { ...prev, status: newStatus } : null);
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Failed to update status");
+    }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg)' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg)', direction: isAr ? 'rtl' : 'ltr' }}>
       {/* Top Navbar */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -148,39 +196,46 @@ function AdminDashboard() {
         borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 100,
       }}>
         <h2 style={{ margin: 0, fontSize: '1.3rem' }}>
-          <span style={{ color: 'var(--color-primary)' }}>Concreto</span> HR Dashboard
+          <span style={{ color: 'var(--color-primary)' }}>TalentFlow</span> {t('HR Dashboard', 'لوحة تحكم الموارد البشرية')}
         </h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <span className="text-muted" style={{ fontSize: '0.85rem' }}>👤 Admin</span>
+          <button
+            className="btn btn-outline"
+            onClick={() => i18n.changeLanguage(isAr ? 'en' : 'ar')}
+            style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+          >
+            {isAr ? 'English' : 'العربية'}
+          </button>
+          <span className="text-muted" style={{ fontSize: '0.85rem' }}>👤 {t('Admin', 'المدير')}</span>
           <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
-            Logout
+            {t('Logout', 'تسجيل الخروج')}
           </button>
         </div>
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         {/* Tab Buttons */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem', flexWrap: 'wrap' }}>
           <button
             onClick={() => { setActiveTab('analytics'); setSelectedApplicant(null); }}
             className={activeTab === 'analytics' ? 'btn btn-primary' : 'btn btn-outline'}
             style={{ padding: '0.6rem 1.5rem' }}
           >
-            📊 Analytics
+            📊 {t('Analytics', 'الإحصائيات')}
           </button>
           <button
             onClick={() => { setActiveTab('applicants'); setSelectedApplicant(null); }}
             className={activeTab === 'applicants' ? 'btn btn-primary' : 'btn btn-outline'}
             style={{ padding: '0.6rem 1.5rem' }}
           >
-            👥 Applicants ({applicants.length})
+            👥 {t('Applicants', 'المتقدمون')} ({applicants.length})
           </button>
           <button
             onClick={() => { setActiveTab('jobs'); setSelectedApplicant(null); }}
             className={activeTab === 'jobs' ? 'btn btn-primary' : 'btn btn-outline'}
             style={{ padding: '0.6rem 1.5rem' }}
           >
-            📋 Jobs ({jobs.length})
+            📋 {t('Jobs', 'الوظائف')} ({jobs.length})
           </button>
         </div>
 
@@ -190,10 +245,10 @@ function AdminDashboard() {
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
               {[
-                { label: 'Total Applicants', value: totalApplicants, icon: '👥', color: '#3b82f6' },
-                { label: 'Avg. Score', value: `${avgScore}/100`, icon: '⭐', color: '#fca311' },
-                { label: 'Strong Fit', value: strongFit, icon: '✅', color: '#10b981' },
-                { label: 'This Week', value: thisWeek, icon: '📅', color: '#8b5cf6' },
+                { label: t('Total Applicants', 'إجمالي المتقدمين'), value: totalApplicants, icon: '👥', color: '#3b82f6' },
+                { label: t('Avg. Score', 'متوسط الدرجات'), value: `${avgScore}/100`, icon: '⭐', color: '#fca311' },
+                { label: t('Strong Fit', 'ملائم تماماً'), value: strongFit, icon: '✅', color: '#10b981' },
+                { label: t('This Week', 'هذا الأسبوع'), value: thisWeek, icon: '📅', color: '#8b5cf6' },
               ].map((kpi, i) => (
                 <div key={i} className="card" style={{ padding: '1.5rem', borderLeft: `4px solid ${kpi.color}`, position: 'relative', overflow: 'hidden' }}>
                   <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{kpi.icon}</div>
@@ -207,15 +262,15 @@ function AdminDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               {/* Recommendation Breakdown Chart */}
               <div className="card">
-                <h3 style={{ marginBottom: '1.5rem' }}>Recommendation Breakdown</h3>
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('Recommendation Breakdown', 'تصنيف التوصيات')}</h3>
                 {totalApplicants === 0 ? (
-                  <p className="text-muted">No applicants yet.</p>
+                  <p className="text-muted">{t('No applicants yet.', 'لا يوجد متقدمون بعد.')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {[
-                      { label: 'Strong Fit', count: strongFit, color: '#10b981' },
-                      { label: 'Potential Fit', count: potentialFit, color: '#fca311' },
-                      { label: 'Not Fit / Invalid', count: notFit, color: '#ef4444' },
+                      { label: t('Strong Fit', 'ملائم تماماً'), count: strongFit, color: '#10b981' },
+                      { label: t('Potential Fit', 'ملائم جزئياً'), count: potentialFit, color: '#fca311' },
+                      { label: t('Not Fit / Invalid', 'غير ملائم'), count: notFit, color: '#ef4444' },
                     ].map((item, i) => (
                       <div key={i}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
@@ -233,18 +288,18 @@ function AdminDashboard() {
 
               {/* Applicants per Job */}
               <div className="card">
-                <h3 style={{ marginBottom: '1.5rem' }}>Applicants per Job</h3>
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('Applicants per Job', 'المتقدمون لكل وظيفة')}</h3>
                 {jobs.length === 0 ? (
-                  <p className="text-muted">No jobs yet.</p>
+                  <p className="text-muted">{t('No jobs yet.', 'لا توجد وظائف بعد.')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {jobs.slice(0, 6).map((job) => {
+                    {jobs.map((job) => {
                       const count = applicants.filter(a => a.jobId === job._id).length;
                       const maxCount = Math.max(...jobs.map(j => applicants.filter(a => a.jobId === j._id).length), 1);
                       return (
                         <div key={job._id}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                            <span style={{ fontSize: '0.85rem', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title_en}</span>
+                            <span style={{ fontSize: '0.85rem', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isAr ? job.title_ar : job.title_en}</span>
                             <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{count}</span>
                           </div>
                           <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
@@ -259,14 +314,14 @@ function AdminDashboard() {
 
               {/* Score Distribution */}
               <div className="card">
-                <h3 style={{ marginBottom: '1.5rem' }}>Score Distribution</h3>
-                {totalApplicants === 0 ? <p className="text-muted">No data.</p> : (
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('Score Distribution', 'توزيع الدرجات')}</h3>
+                {totalApplicants === 0 ? <p className="text-muted">{t('No data.', 'لا توجد بيانات.')}</p> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {[
-                      { label: '80–100 (Excellent)', range: [80, 100], color: '#10b981' },
-                      { label: '60–79 (Good)', range: [60, 79], color: '#fca311' },
-                      { label: '40–59 (Average)', range: [40, 59], color: '#f97316' },
-                      { label: '0–39 (Poor)', range: [0, 39], color: '#ef4444' },
+                      { label: t('80–100 (Excellent)', '٠٨٠٣-١٠٠ (ممتاز)'), range: [80, 100], color: '#10b981' },
+                      { label: t('60–79 (Good)', '٦٠-٧٩ (جيد)'), range: [60, 79], color: '#fca311' },
+                      { label: t('40–59 (Average)', '٤٠-٥٩ (متوسط)'), range: [40, 59], color: '#f97316' },
+                      { label: t('0–39 (Poor)', '٠-٣٩ (ضعيف)'), range: [0, 39], color: '#ef4444' },
                     ].map((tier, i) => {
                       const count = applicants.filter(a => {
                         const s = a.evaluation?.total_score || 0;
@@ -290,14 +345,14 @@ function AdminDashboard() {
 
               {/* Top Summary */}
               <div className="card">
-                <h3 style={{ marginBottom: '1.5rem' }}>Quick Summary</h3>
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('Quick Summary', 'ملخص سريع')}</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {[
-                    { label: 'Most Popular Job', value: topJob.title ? `${topJob.title} (${topJob.count})` : 'N/A', icon: '🏆' },
-                    { label: 'Acceptance Rate', value: totalApplicants > 0 ? `${Math.round(strongFit / totalApplicants * 100)}%` : '0%', icon: '📈' },
-                    { label: 'Rejection Rate', value: totalApplicants > 0 ? `${Math.round(notFit / totalApplicants * 100)}%` : '0%', icon: '📉' },
-                    { label: 'Under Review', value: potentialFit, icon: '🔍' },
-                    { label: 'Total Open Positions', value: jobs.length, icon: '💼' },
+                    { label: t('Most Popular Job', 'أكثر وظيفة طلباً'), value: topJob.title ? `${topJob.title} (${topJob.count})` : t('N/A', 'غير متوفر'), icon: '🏆' },
+                    { label: t('Acceptance Rate', 'نسبة القبول'), value: totalApplicants > 0 ? `${Math.round(strongFit / totalApplicants * 100)}%` : '0%', icon: '📈' },
+                    { label: t('Rejection Rate', 'نسبة الرفض'), value: totalApplicants > 0 ? `${Math.round(notFit / totalApplicants * 100)}%` : '0%', icon: '📉' },
+                    { label: t('Under Review', 'قيد المراجعة'), value: potentialFit, icon: '🔍' },
+                    { label: t('Total Open Positions', 'إجمالي الوظائف المفتوحة'), value: jobs.length, icon: '💼' },
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0', borderBottom: '1px solid var(--color-border)' }}>
                       <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{item.icon} {item.label}</span>
@@ -314,13 +369,13 @@ function AdminDashboard() {
         {activeTab === 'jobs' && (
           <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3>Active Job Positions</h3>
+              <h3>{t('Active Job Positions', 'الوظائف المفتوحة')}</h3>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn btn-outline" onClick={() => { if(confirm('Clear all applicants?')) { clearApplicants(); } }} style={{ padding: '0.5rem 1rem', borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>
-                  🗑 Clear All Applicants
+                <button className="btn btn-outline" onClick={() => { if(confirm(t('Clear all applicants?', 'هل تريد حذف جميع المتقدمين؟'))) { clearApplicants(); } }} style={{ padding: '0.5rem 1rem', borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>
+                  🗑 {t('Clear All Applicants', 'حذف جميع المتقدمين')}
                 </button>
                 <button className="btn btn-primary" onClick={() => setShowAddJob(!showAddJob)} style={{ padding: '0.5rem 1rem' }}>
-                  {showAddJob ? '✕ Cancel' : '+ Add Job'}
+                  {showAddJob ? t('✕ Cancel', '✕ إلغاء') : t('+ Add Job', '+ إضافة وظيفة')}
                 </button>
               </div>
             </div>
@@ -328,27 +383,60 @@ function AdminDashboard() {
             {/* Add Job Form */}
             {showAddJob && (
               <div className="card fade-in" style={{ marginBottom: '1.5rem', border: '1px solid var(--color-primary)' }}>
-                <h4 style={{ marginBottom: '1rem' }}>New Job Position</h4>
+                <h4 style={{ marginBottom: '1rem' }}>{t('New Job Position', 'وظيفة جديدة')}</h4>
                 <form onSubmit={handleAddJob}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
-                      <label className="form-label">Title (English)</label>
+                      <label className="form-label">{t('Title (English)', 'المسمى (إنجليزي)')}</label>
                       <input type="text" className="form-control" required
                         value={newJob.title_en} onChange={(e) => setNewJob({ ...newJob, title_en: e.target.value })} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Title (Arabic)</label>
+                      <label className="form-label">{t('Title (Arabic)', 'المسمى (عربي)')}</label>
                       <input type="text" className="form-control" required dir="rtl"
                         value={newJob.title_ar} onChange={(e) => setNewJob({ ...newJob, title_ar: e.target.value })} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Department</label>
+                      <label className="form-label">{t('Department', 'القسم')}</label>
                       <input type="text" className="form-control" required
                         value={newJob.department} onChange={(e) => setNewJob({ ...newJob, department: e.target.value })} />
                     </div>
                   </div>
+
+                  {/* Question Bank Input */}
+                  <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    <label className="form-label">📚 {t('Add Custom Questions to Bank (Optional)', 'إضافة أسئلة مخصصة (اختياري)')}</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                      <input 
+                        type="text" className="form-control" placeholder={t('Enter question...', 'اكتب السؤال...')} 
+                        value={questionInput.text} onChange={e => setQuestionInput({...questionInput, text: e.target.value})}
+                        style={{ flex: 3 }}
+                      />
+                      <select 
+                        className="form-control" style={{ flex: 1 }}
+                        value={questionInput.category} onChange={e => setQuestionInput({...questionInput, category: e.target.value})}
+                      >
+                        <option value="Technical">{t('Technical', 'تقني')}</option>
+                        <option value="Behavioral">{t('Behavioral', 'سلوكي')}</option>
+                        <option value="Hybrid">{t('Hybrid', 'مختلط')}</option>
+                      </select>
+                      <button type="button" className="btn btn-primary" onClick={addQuestionToNewJob}>{t('Add', 'إضافة')}</button>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {newJob.customQuestions.map((q, i) => (
+                        <div key={i} style={{ 
+                          padding: '0.4rem 0.8rem', backgroundColor: 'var(--color-bg)', borderRadius: '4px', 
+                          border: '1px solid var(--color-border)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px'
+                        }}>
+                          <span>[{q.category}] {q.text}</span>
+                          <button type="button" onClick={() => removeQuestionFromNewJob(i)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.6rem 2rem' }}>
-                    Save Job
+                    {t('Save Job', 'حفظ الوظيفة')}
                   </button>
                 </form>
               </div>
@@ -359,24 +447,57 @@ function AdminDashboard() {
               {jobs.map(job => {
                 const jobApplicants = applicants.filter(a => a.jobId === job._id);
                 return (
-                  <div className="card" key={job._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem' }}>
-                    <div>
-                      <h4 style={{ margin: 0, marginBottom: '0.3rem' }}>{job.title_en}</h4>
-                      <span className="text-muted" style={{ fontSize: '0.85rem' }}>{job.title_ar} · {job.department}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{jobApplicants.length}</div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>Applicants</div>
+                  <div key={job._id} style={{ marginBottom: '1.5rem' }}>
+                    <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', marginBottom: '0.5rem' }}>
+                      <div>
+                        <h4 style={{ margin: 0, marginBottom: '0.3rem' }}>{isAr ? job.title_ar : job.title_en}</h4>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>{isAr ? job.title_en : job.title_ar} · {job.department}</span>
                       </div>
-                      <span style={{
-                        padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
-                      }}>Active</span>
-                      <button className="btn btn-outline" onClick={() => deleteJob(job._id)}
-                        style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
-                        Delete
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{job.customQuestions?.length || 0}</div>
+                          <div className="text-muted" style={{ fontSize: '0.75rem' }}>{t('Questions', 'أسئلة')}</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{jobApplicants.length}</div>
+                          <div className="text-muted" style={{ fontSize: '0.75rem' }}>{t('Applicants', 'متقدمون')}</div>
+                        </div>
+                        <span style={{
+                          padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+                        }}>{t('Active', 'نشطة')}</span>
+                        <button className="btn btn-outline" onClick={() => deleteJob(job._id)}
+                          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                          {t('Delete', 'حذف')}
+                        </button>
+                      </div>
+                    </div>
+                    {/* Share Section */}
+                    <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                      <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>🔗 {t('Recruitment Links (Source Tracking)', 'روابط التوظيف (تتبع المصدر)')}</div>
+                      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        {[
+                          { name: 'LinkedIn', src: 'linkedin' },
+                          { name: 'Twitter/X', src: 'twitter' },
+                          { name: 'Facebook', src: 'facebook' },
+                          { name: 'General', src: 'direct' }
+                        ].map(source => {
+                          const link = `${window.location.origin}/?src=${source.src}`;
+                          return (
+                            <div key={source.src} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--color-bg)', padding: '0.4rem 0.8rem', borderRadius: '4px' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{source.name}</span>
+                              <button 
+                                className="btn btn-outline" 
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(link);
+                                  alert(`Copied link for ${source.name}`);
+                                }}
+                              >{t('Copy', 'نسخ')}</button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
@@ -390,14 +511,14 @@ function AdminDashboard() {
           <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0 }}>
-                All Applicants
+                {t('All Applicants', 'جميع المتقدمين')}
                 <span className="text-muted" style={{ fontSize: '0.9rem', fontWeight: 'normal', marginLeft: '0.5rem' }}>
-                  ({filteredApplicants.length} of {applicants.length})
+                  ({filteredApplicants.length} {t('of', 'من')} {applicants.length})
                 </span>
               </h3>
-              <button className="btn btn-outline" onClick={() => { if(window.confirm('Clear all applicants?')) clearApplicants(); }}
+              <button className="btn btn-outline" onClick={() => { if(window.confirm(t('Clear all applicants?', 'حذف جميع المتقدمين؟'))) clearApplicants(); }}
                 style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
-                🗑 Clear All
+                🗑 {t('Clear All', 'حذف الكل')}
               </button>
             </div>
 
@@ -405,7 +526,7 @@ function AdminDashboard() {
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
               <input
                 type="text"
-                placeholder="🔍 Search by name, email or role..."
+                placeholder={t('🔍 Search by name, email or role...', '🔍 ابحث بالاسم أو البريد...')}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="form-control"
@@ -417,11 +538,11 @@ function AdminDashboard() {
                 className="form-control"
                 style={{ flex: '1', minWidth: '160px' }}
               >
-                <option value="all">All Statuses</option>
-                <option value="Strong Fit">✅ Strong Fit</option>
-                <option value="Potential Fit">🔶 Potential Fit</option>
-                <option value="Not Fit">❌ Not Fit</option>
-                <option value="Invalid Answers">⚠️ Invalid Answers</option>
+                <option value="all">{t('All Statuses', 'جميع الحالات')}</option>
+                <option value="Hired">✅ {t('Hired', 'تم التوظيف')}</option>
+                <option value="Shortlisted">🔶 {t('Shortlisted', 'قائمة مختصرة')}</option>
+                <option value="Pending">⌛ {t('Pending', 'قيد الانتظار')}</option>
+                <option value="Rejected">❌ {t('Rejected', 'مرفوض')}</option>
               </select>
               <select
                 value={filterJob}
@@ -429,19 +550,19 @@ function AdminDashboard() {
                 className="form-control"
                 style={{ flex: '1', minWidth: '160px' }}
               >
-                <option value="all">All Jobs</option>
-                {jobs.map(j => <option key={j._id} value={j._id}>{j.title_en}</option>)}
+                <option value="all">{t('All Jobs', 'جميع الوظائف')}</option>
+                {jobs.map(j => <option key={j._id} value={j._id}>{isAr ? j.title_ar : j.title_en}</option>)}
               </select>
               {(searchQuery || filterStatus !== 'all' || filterJob !== 'all') && (
                 <button className="btn btn-outline" onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterJob('all'); }}
-                  style={{ padding: '0.5rem 1rem' }}>✕ Clear</button>
+                  style={{ padding: '0.5rem 1rem' }}>✕ {t('Clear', 'مسح')}</button>
               )}
             </div>
 
             {filteredApplicants.length === 0 ? (
               <div className="card text-center" style={{ padding: '3rem' }}>
                 <p className="text-muted" style={{ fontSize: '1.1rem' }}>
-                  {applicants.length === 0 ? 'No applicants yet.' : 'No results match your search/filter.'}
+                  {applicants.length === 0 ? t('No applicants yet.', 'لا يوجد متقدمون بعد.') : t('No results match your search/filter.', 'لا توجد نتائج تطابق بحثك.')}
                 </p>
               </div>
             ) : (
@@ -450,12 +571,14 @@ function AdminDashboard() {
                   <thead>
                     <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--color-border)' }}>
                       <th style={thStyle}>#</th>
-                      <th style={thStyle}>Name</th>
-                      <th style={thStyle}>Applied Role</th>
-                      <th style={thStyle}>Score</th>
-                      <th style={thStyle}>Status</th>
-                      <th style={thStyle}>Date</th>
-                      <th style={thStyle}>Action</th>
+                      <th style={thStyle}>{t('Name', 'الاسم')}</th>
+                      <th style={thStyle}>{t('Applied Role', 'الوظيفة')}</th>
+                      <th style={thStyle}>{t('Score', 'الدرجة')}</th>
+                      <th style={thStyle}>{t('Source', 'المصدر')}</th>
+                      <th style={thStyle}>{t('Status', 'الحالة')}</th>
+                      <th style={thStyle}>{t('Date', 'التاريخ')}</th>
+                      <th style={thStyle}>{t('CV', 'السيرة الذاتية')}</th>
+                      <th style={thStyle}>{t('Action', 'إجراء')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -470,18 +593,31 @@ function AdminDashboard() {
                         </td>
                         <td style={tdStyle}>{app.candidate?.jobTitle || getJobTitle(app.jobId)}</td>
                         <td style={tdStyle}>
-                          <span style={{ fontWeight: 'bold', color: (app.evaluation?.total_score || 0) >= 60 ? '#10b981' : '#ef4444' }}>
+                          <span style={{ fontWeight: 'bold', color: (app.evaluation?.total_score || 0) >= 60 ? '#10b981' : '#ef4444', direction: 'ltr', display: 'inline-block' }}>
                             {app.evaluation?.total_score || 0} / 100
                           </span>
                         </td>
-                        <td style={tdStyle}>{getStatusBadge(app.evaluation?.recommendation || 'Not Fit')}</td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: '0.8rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                            {app.source || t('Website', 'الموقع الإلكتروني')}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>{getStatusBadge(app.status || 'Pending')}</td>
                         <td style={{...tdStyle, fontSize: '0.8rem', color: 'var(--color-text-muted)'}}>
                           {new Date(app.appliedAt).toLocaleDateString()}
                         </td>
                         <td style={tdStyle}>
+                          {app.cvFile ? (
+                            <button className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', color: 'var(--color-info)', borderColor: 'var(--color-info)' }}
+                              onClick={(e) => { e.stopPropagation(); handleDownloadCV(app); }}>
+                              📥 {t('Download', 'تحميل')}
+                            </button>
+                          ) : <span className="text-muted" style={{ fontSize: '0.8rem' }}>{t('No File', 'لا يوجد')}</span>}
+                        </td>
+                        <td style={tdStyle}>
                           <button className="btn btn-outline" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
                             onClick={() => setSelectedApplicant(app)}>
-                            View
+                            {t('View', 'عرض')}
                           </button>
                         </td>
                       </tr>
@@ -500,41 +636,41 @@ function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <button className="btn btn-outline" onClick={() => setSelectedApplicant(null)}
                 style={{ padding: '0.5rem 1rem' }}>
-                ← Back to Applicants
+                ← {t('Back to Applicants', 'عودة للمتقدمين')}
               </button>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {selectedApplicant?.cvFile && (
                   <button className="btn btn-outline" onClick={handleDownloadCV} style={{ padding: '0.5rem 1rem', borderColor: 'var(--color-info)', color: 'var(--color-info)' }}>
-                    📄 Download Original CV
+                    📄 {t('Download Original CV', 'تحميل السيرة الذاتية')}
                   </button>
                 )}
                 <button className="btn btn-primary" onClick={handleDownloadPDF} style={{ padding: '0.5rem 1rem' }}>
-                  📥 Download PDF Report
+                  📥 {t('Download PDF Report', 'تحميل تقرير PDF')}
                 </button>
               </div>
             </div>
             <div ref={reportRef} style={{ padding: '10px' }}>
               <div style={{ display: 'none', marginBottom: '20px', borderBottom: '2px solid #fca311', paddingBottom: '10px' }} className="pdf-only">
-                <h1 style={{ color: '#000', margin: 0 }}>Concreto Ready Mix</h1>
+                <h1 style={{ color: '#000', margin: 0 }}>TalentFlow AI</h1>
                 <p style={{ color: '#666', margin: 0 }}>AI Recruitment Report</p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div className="card">
-                    <h3 style={{ marginBottom: '1.5rem' }}>Candidate Information</h3>
+                    <h3 style={{ marginBottom: '1.5rem' }}>{t('Candidate Information', 'بيانات المرشح')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <InfoRow label="Name" value={selectedApplicant.candidate.name} />
-                      <InfoRow label="Email" value={selectedApplicant.candidate.email} />
-                      <InfoRow label="Applied Role" value={selectedApplicant.candidate.jobTitle || 'N/A'} />
-                      <InfoRow label="Applied Date" value={new Date(selectedApplicant.appliedAt).toLocaleDateString()} />
+                      <InfoRow label={t('Name', 'الاسم')} value={selectedApplicant.candidate.name} />
+                      <InfoRow label={t('Email', 'البريد')} value={selectedApplicant.candidate.email} />
+                      <InfoRow label={t('Applied Role', 'الوظيفة')} value={selectedApplicant.candidate.jobTitle || 'N/A'} />
+                      <InfoRow label={t('Applied Date', 'تاريخ التقديم')} value={new Date(selectedApplicant.appliedAt).toLocaleDateString()} />
                     </div>
                   </div>
 
                   {selectedApplicant.cvData && (
                     <div className="card" style={{ borderLeft: '4px solid var(--color-info)' }}>
                       <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        📄 CV AI Analysis
+                        📄 {t('CV AI Analysis', 'تحليل السيرة الذاتية')}
                         <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--color-bg)', color: 'var(--color-info)' }}>
                           {selectedApplicant.cvData.technical_match}% Match
                         </span>
@@ -545,17 +681,17 @@ function AdminDashboard() {
                       
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '0.7rem' }}>Education</label>
+                          <label className="form-label" style={{ fontSize: '0.7rem' }}>{t('Education', 'التعليم')}</label>
                           <div style={{ fontSize: '0.9rem' }}>{selectedApplicant.cvData.education}</div>
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '0.7rem' }}>Experience</label>
-                          <div style={{ fontSize: '0.9rem' }}>{selectedApplicant.cvData.experience_years} Years</div>
+                          <label className="form-label" style={{ fontSize: '0.7rem' }}>{t('Experience', 'الخبرة')}</label>
+                          <div style={{ fontSize: '0.9rem' }}>{selectedApplicant.cvData.experience_years} {t('Years', 'سنوات')}</div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="form-label" style={{ fontSize: '0.7rem' }}>Extracted Skills</label>
+                        <label className="form-label" style={{ fontSize: '0.7rem' }}>{t('Extracted Skills', 'المهارات المستخرجة')}</label>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                           {selectedApplicant.cvData.skills.map((skill, i) => (
                             <span key={i} style={{
@@ -571,27 +707,42 @@ function AdminDashboard() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div className="card">
-                    <h3 style={{ marginBottom: '1.5rem' }}>AI Evaluation Scores</h3>
+                    <h3 style={{ marginBottom: '1.5rem' }}>{t('AI Evaluation Scores', 'نتائج تقييم الذكاء الاصطناعي')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <ScoreBar label="Behavioral Score" score={selectedApplicant.evaluation?.scores?.behavior || 0} max={10} color="#10b981" />
-                      <ScoreBar label="Attitude Score" score={selectedApplicant.evaluation?.scores?.attitude || 0} max={10} color="#fca311" />
-                      <ScoreBar label="Personality Fit" score={selectedApplicant.evaluation?.scores?.personality || 0} max={10} color="#3b82f6" />
+                      <ScoreBar label={t('Behavioral Score', 'درجة السلوك')} score={selectedApplicant.evaluation?.scores?.behavior || 0} max={10} color="#10b981" />
+                      <ScoreBar label={t('Attitude Score', 'درجة الموقف')} score={selectedApplicant.evaluation?.scores?.attitude || 0} max={10} color="#fca311" />
+                      <ScoreBar label={t('Personality Fit', 'توافق الشخصية')} score={selectedApplicant.evaluation?.scores?.personality || 0} max={10} color="#3b82f6" />
                       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: '0.5rem 0' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>Overall Rating</div>
-                          <span style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                          <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('Overall Rating', 'التقييم العام')}</div>
+                          <span style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)', direction: 'ltr', display: 'inline-block' }}>
                             {selectedApplicant.evaluation?.total_score || 0} / 100
                           </span>
                         </div>
-                        {getStatusBadge(selectedApplicant.evaluation?.recommendation || 'Not Fit')}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                          <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('Candidate Status', 'حالة المرشح')}</div>
+                          <select 
+                            value={selectedApplicant.status || 'Pending'}
+                            onChange={(e) => handleUpdateStatus(selectedApplicant._id, e.target.value)}
+                            style={{ 
+                              padding: '0.4rem 1rem', borderRadius: '4px', backgroundColor: 'var(--color-bg)', 
+                              color: '#fff', border: '1px solid var(--color-primary)', outline: 'none'
+                            }}
+                          >
+                            <option value="Pending">⌛ Pending Review</option>
+                            <option value="Shortlisted">🔶 Shortlisted</option>
+                            <option value="Hired">✅ Hired</option>
+                            <option value="Rejected">❌ Rejected</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {selectedApplicant.evaluation?.disc && (
                     <div className="card">
-                      <h3 style={{ marginBottom: '1.5rem' }}>DISC Profile</h3>
+                      <h3 style={{ marginBottom: '1.5rem' }}>{t('DISC Profile', 'ملف شخصية DISC')}</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <ScoreBar label="Dominance (D)" score={selectedApplicant.evaluation.disc.d || 0} max={100} color="#ef4444" suffix="%" />
                         <ScoreBar label="Influence (I)" score={selectedApplicant.evaluation.disc.i || 0} max={100} color="#fca311" suffix="%" />
@@ -604,10 +755,10 @@ function AdminDashboard() {
               </div>
 
               <div className="card" style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ marginBottom: '1.5rem' }}>AI Insights & Strengths</h3>
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('AI Insights & Strengths', 'تحليل الذكاء الاصطناعي')}</h3>
                 {selectedApplicant.evaluation?.strengths?.length > 0 && (
                   <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 style={{ color: '#10b981', marginBottom: '0.75rem' }}>✅ Strengths</h4>
+                    <h4 style={{ color: '#10b981', marginBottom: '0.75rem' }}>✅ {t('Strengths', 'نقاط القوة')}</h4>
                     <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
                       {selectedApplicant.evaluation.strengths.map((s, i) => (
                         <li key={i} style={{ marginBottom: '0.4rem' }}>{s}</li>
@@ -619,7 +770,7 @@ function AdminDashboard() {
 
               {selectedApplicant.answers?.length > 0 && (
                 <div className="card" style={{ marginTop: '1.5rem' }}>
-                  <h3 style={{ marginBottom: '1.5rem' }}>Interview Answers</h3>
+                  <h3 style={{ marginBottom: '1.5rem' }}>{t('Interview Answers', 'إجابات المقابلة')}</h3>
                   {selectedApplicant.answers.map((a, i) => (
                     <div key={i} style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: i < selectedApplicant.answers.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                       <p style={{ fontWeight: '600', color: 'var(--color-primary)', marginBottom: '0.5rem' }}>Q{i + 1}: {a.question}</p>
@@ -660,17 +811,17 @@ const InfoRow = ({ label, value }) => (
 
 const ScoreBar = ({ label, score, max, color, suffix = '' }) => (
   <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', direction: 'ltr' }}>
       <span style={{ fontSize: '0.9rem' }}>{label}</span>
       <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{score}{suffix} / {max}{suffix}</span>
     </div>
-    <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+    <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden', direction: 'ltr' }}>
       <div style={{ width: `${(score / max) * 100}%`, height: '100%', backgroundColor: color, borderRadius: '3px', transition: 'width 0.5s ease' }}></div>
     </div>
   </div>
 );
 
-const thStyle = { textAlign: 'left', padding: '0.9rem 1rem', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' };
+const thStyle = { padding: '0.9rem 1rem', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tdStyle = { padding: '0.9rem 1rem', fontSize: '0.9rem' };
 
 export default AdminDashboard;

@@ -1,13 +1,24 @@
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useInterviewStore } from '../store/interviewStore';
 
 function LandingPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const setCandidateInfo = useInterviewStore(state => state.setCandidateInfo);
   const [serverStatus, setServerStatus] = useState('checking');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+  useEffect(() => {
+    // Capture Source Tracking
+    const source = searchParams.get('src');
+    if (source) {
+      setCandidateInfo({ source });
+    }
+  }, [searchParams, setCandidateInfo]);
 
   useEffect(() => {
     const checkServer = async () => {
@@ -32,7 +43,7 @@ function LandingPage() {
         backdropFilter: 'blur(12px)', zIndex: 1000, borderBottom: '1px solid rgba(255,255,255,0.05)'
       }}>
         <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-primary)', letterSpacing: '-1px' }}>
-          Concreto<span style={{ color: '#fff' }}>AI</span>
+          TalentFlow<span style={{ color: '#fff' }}>AI</span>
         </div>
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
           <button onClick={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
@@ -67,12 +78,12 @@ function LandingPage() {
             ✨ {isArabic ? 'مستقبل التوظيف هنا' : 'The future of hiring is here'}
           </div>
           <h1 style={{ fontSize: '4.5rem', fontWeight: '900', lineHeight: '1.1', marginBottom: '1.5rem', letterSpacing: '-2px', maxWidth: '900px', margin: '0 auto 1.5rem' }}>
-            {isArabic ? 'وظّف أفضل الكوادر بذكاء اصطناعي متخصص' : 'Hire Top Talent with Specialized AI Interviews'}
+            {isArabic ? 'وظّف أفضل الكوادر بذكاء اصطناعي متقدم' : 'Hire Top Talent with AI-Powered Interviews'}
           </h1>
           <p style={{ fontSize: '1.4rem', color: 'rgba(255,255,255,0.6)', maxWidth: '700px', margin: '0 auto 3rem', lineHeight: '1.6' }}>
             {isArabic 
-              ? 'منصة خبيرة في قطاع الخرسانة والإنشاءات، تقوم بإجراء مقابلات واقعية وتحليل الشخصية والمهارات بدقة متناهية.'
-              : 'The only AI platform specialized in the concrete and construction industry, performing realistic technical interviews and deep candidate analysis.'}
+              ? 'منصة ذكية شاملة لجميع القطاعات، تقوم بإجراء مقابلات واقعية وتحليل الشخصية والمهارات بدقة متناهية.'
+              : 'A comprehensive AI platform for all industries, performing realistic technical interviews and deep candidate analysis with unmatched precision.'}
           </p>
           <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center' }}>
             <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem', boxShadow: '0 10px 40px rgba(252, 163, 17, 0.3)' }}>
@@ -89,7 +100,7 @@ function LandingPage() {
       <section style={{ padding: '8rem 10%', background: '#080e1a' }}>
         <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1rem' }}>
-            {isArabic ? 'لماذا تختار كونكريتو؟' : 'Why Choose Concreto AI?'}
+            {isArabic ? 'لماذا تختار TalentFlow؟' : 'Why Choose TalentFlow AI?'}
           </h2>
           <div style={{ width: '60px', height: '4px', backgroundColor: 'var(--color-primary)', margin: '0 auto' }}></div>
         </div>
@@ -97,9 +108,9 @@ function LandingPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
           {[
             { 
-              title: isArabic ? 'ذكاء اصطناعي تخصصي' : 'Industry Specialized', 
-              desc: isArabic ? 'ليس مجرد ذكاء اصطناعي عام، بل خبير في معايير الخرسانة والإنشاءات.' : 'Not just generic AI. It understands slump tests, mix designs, and safety protocols.',
-              icon: '🏗️'
+              title: isArabic ? 'ذكاء اصطناعي متعدد التخصصات' : 'Multi-Industry AI', 
+              desc: isArabic ? 'يتكيف مع جميع القطاعات: الهندسة، الموارد البشرية، التقنية، المبيعات، وغيرها.' : 'Adapts to all sectors: engineering, HR, tech, sales, healthcare, and more.',
+              icon: '🌐'
             },
             { 
               title: isArabic ? 'تحليل الشخصية DISC' : 'DISC Personality Profiling', 
@@ -167,7 +178,7 @@ function LandingPage() {
           {isArabic ? 'ابدأ تجربة المقابلة الآن' : 'Start AI Interview Now'}
         </button>
         <div style={{ marginTop: '4rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.9rem' }}>
-          © 2026 Concreto Ready Mix. All rights reserved. Powered by AI.
+          © 2026 TalentFlow AI. All rights reserved. Powered by Intelligence.
         </div>
       </footer>
       

@@ -30,8 +30,9 @@ function CandidateProfile() {
     const selectedJob = jobs.find(j => j._id === formData.role);
     const isArabic = i18n.language === 'ar';
     const jobTitle = selectedJob ? (isArabic ? selectedJob.title_ar : selectedJob.title_en) : '';
+    const customQuestions = selectedJob?.customQuestions || [];
     
-    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role });
+    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role, customQuestions });
     navigate('/upload-cv');
   };
 

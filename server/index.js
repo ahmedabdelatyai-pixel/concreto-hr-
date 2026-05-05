@@ -12,16 +12,16 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 const DB_PATH = path.join(__dirname, 'database.json');
 
-// Initialize Local DB if doesn't exist
-if (!fs.existsSync(DB_PATH)) {
+// Initialize Local DB if doesn't exist (Only in local development)
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(DB_PATH)) {
   fs.writeFileSync(DB_PATH, JSON.stringify({ applicants: [], jobs: [] }, null, 2));
 }
 
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
-  origin: '*', // For development, we'll restrict this later in production
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -32,13 +32,26 @@ let useLocalDB = false;
 
 // Helpers for Local DB
 const readLocal = () => JSON.parse(fs.readFileSync(DB_PATH));
-const writeLocal = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+const writeLocal = (data) => {
+  if (process.env.NODE_ENV === 'production') return;
+  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+};
 
 // Routes
-app.get('/', (req, res) => res.send('Concreto HR AI API is running... (Mode: ' + (useLocalDB ? 'Local' : 'Cloud') + ')'));
+// Health Check
+app.get('/', (req, res) => res.send('TalentFlow AI API is running...'));
+app.get('/api', (req, res) => res.send('TalentFlow AI API is running (at /api)...'));
+app.get('/api/health', (req, res) => res.json({ 
+  status: 'ok', 
+  mode: useLocalDB ? 'local' : 'cloud',
+  dbConnected: mongoose.connection.readyState === 1
+}));
 
 // Job Routes
 app.get('/api/jobs', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   if (useLocalDB) return res.json(readLocal().jobs);
   try {
     const Job = require('./models/Job');
@@ -77,6 +90,9 @@ app.delete('/api/jobs/:id', async (req, res) => {
 
 // Applicant Routes
 app.get('/api/applicants', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   if (useLocalDB) return res.json(readLocal().applicants.sort((a,b) => new Date(b.appliedAt) - new Date(a.appliedAt)));
   try {
     const Applicant = require('./models/Applicant');
@@ -117,23 +133,52 @@ app.delete('/api/applicants/clear', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+app.patch('/api/applicants/:id/status', async (req, res) => {
+  const { status } = req.body;
+  if (useLocalDB) {
+    const db = readLocal();
+    const index = db.applicants.findIndex(a => a._id === req.params.id);
+    if (index !== -1) {
+      db.applicants[index].status = status;
+      writeLocal(db);
+      return res.json(db.applicants[index]);
+    }
+    return res.status(404).json({ message: 'Not found' });
+  }
+  try {
+    const Applicant = require('./models/Applicant');
+    const updated = await Applicant.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    res.json(updated);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // Server Start & DB Connection
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Connection logic
 if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI)
+  mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+  })
     .then(() => {
       console.log('Connected to MongoDB Atlas');
       useLocalDB = false;
     })
     .catch(err => {
-      console.error('Cloud DB connection failed, switching to LOCAL DB mode.');
-      useLocalDB = true;
+      console.error('Cloud DB connection failed:', err.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Switching to LOCAL DB mode.');
+        useLocalDB = true;
+      }
     });
 } else {
-  useLocalDB = true;
+  if (process.env.NODE_ENV !== 'production') {
+    useLocalDB = true;
+  } else {
+    console.error('FATAL ERROR: MONGODB_URI is not defined in production.');
+  }
 }
 
 // Export for Vercel

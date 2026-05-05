@@ -29,7 +29,7 @@ function AdminLogin() {
             margin: '0 auto 1rem', fontSize: '1.5rem'
           }}>🔒</div>
           <h2 style={{ marginBottom: '0.5rem' }}>Admin Panel</h2>
-          <p className="text-muted">Concreto Ready Mix - HR Dashboard</p>
+          <p className="text-muted">TalentFlow AI - HR Dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit}>

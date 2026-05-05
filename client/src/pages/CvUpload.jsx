@@ -44,7 +44,8 @@ function CvUpload() {
         setCvData(atsResult);
 
         // 2. Generate Tailored Questions based on Job Title AND CV background
-        const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language);
+        const customBank = useInterviewStore.getState().candidate.customQuestions;
+        const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank);
         if (dynamicQuestions && dynamicQuestions.length > 0) {
           setQuestions(dynamicQuestions);
         }

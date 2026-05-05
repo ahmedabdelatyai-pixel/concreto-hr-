@@ -1,5 +1,5 @@
 {
-  "name": "concreto-hr-platform",
+  "name": "talentflow-platform",
   "version": "1.0.0",
   "scripts": {
     "start": "concurrently \"npm run server\" \"npm run client\" --kill-others",

@@ -1,6 +1,6 @@
 /**
  * AI Evaluation Service (Google Gemini Integration)
- * Concreto Ready Mix - HR Platform
+ * TalentFlow - HR Platform
  */
 
 const GEMINI_MODEL = 'gemini-2.0-flash';
@@ -66,7 +66,7 @@ export const analyzeCv = async (file) => {
     ? `Full CV Text Content:\n---\n${pdfText}\n---`
     : `File Name: "${file.name}", File Size: ${(file.size / 1024).toFixed(1)} KB, File Type: ${file.type}`;
 
-  const prompt = `You are an expert CV parser and HR analyst for Concreto Ready Mix (concrete & construction industry).
+  const prompt = `You are an expert CV parser and HR analyst for TalentFlow (AI-driven recruitment platform).
 Analyze this job application carefully:
 
 ${contentDescription}
@@ -78,7 +78,7 @@ Return a JSON object with these EXACT keys:
   "skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
   "experience_years": <integer 0-30>,
   "education": "Highest degree and field of study",
-  "technical_match": <integer 0-100, based on relevance to construction/concrete industry>,
+  "technical_match": <integer 0-100, based on relevance to the applied job role>,
   "is_fit_for_interview": <true if technical_match >= 40, false otherwise>
 }`;
 
@@ -99,34 +99,22 @@ const ROLE_BLUEPRINTS = {
 - 2 سؤال عن حوادث أو مشاكل فعلية واجهتها في العمل وكيف تعاملت معها
 - 2 سؤال عن السلامة والتعامل مع زملاء أو مدراء في بيئة عمل صعبة
 - 2 سؤال يختبر شخصيتك ومدى التزامك وقدرتك على تحمل المسؤولية`,
-    concrete: `
-- 3 أسئلة عن نسب الخلط، ضبط الجودة، وإجراءات الـ slump test
-- 2 سؤال عن مشاكل فعلية واجهتها في المصنع أو الموقع (تأخر إمدادات، عطل ماكينة، إلخ)
-- 2 سؤال عن قواعد السلامة في مصنع الخرسانة الجاهزة
-- 3 أسئلة عن التعامل مع ضغط العمل وإدارة الوقت في المشاريع`,
   },
   en: {
     default: `
-- 4 technical questions directly tied to real daily tasks of a "${'{jobTitle}'}" (NOT generic)
-- 2 situational questions about real problems/incidents this role faces on site or in the field
+- 4 technical questions directly tied to real daily tasks of a "${'{jobTitle'}" (NOT generic)
+- 2 situational questions about real problems/incidents this role faces
 - 2 questions about safety culture and teamwork under operational pressure
 - 2 personality questions testing accountability, punctuality, and self-driven learning`,
-    concrete: `
-- 3 questions about mix designs, quality control procedures, and slump/air content testing
-- 2 questions about real incidents: equipment failure, supply delays, rejected loads
-- 2 questions about concrete plant safety standards and PPE protocols
-- 3 questions about time management under client deadline pressure and multi-project workload`,
   },
 };
 
 const getBlueprintForRole = (jobTitle, lang) => {
-  const lc = jobTitle.toLowerCase();
   const blueprints = ROLE_BLUEPRINTS[lang === 'ar' ? 'ar' : 'en'];
-  const isConcrete = ['concrete', 'خرسانة', 'mixer', 'خلاط', 'batching', 'quality control', 'جودة', 'driver', 'سائق', 'operator', 'مشغل'].some(k => lc.includes(k));
-  return isConcrete ? blueprints.concrete.replace('{jobTitle}', jobTitle) : blueprints.default.replace('{jobTitle}', jobTitle);
+  return blueprints.default.replace('{jobTitle}', jobTitle);
 };
 
-export const generateQuestions = async (jobTitle, cvData, language = 'en') => {
+export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = []) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) return null;
 
@@ -137,41 +125,43 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en') => {
     ? `\nThe candidate's CV summary: "${cvData.summary}". Their declared skills: ${cvData.skills?.join(', ')}.`
     : '';
 
+  const customContext = customBank.length > 0
+    ? `\nSTRICT REQUIREMENT: You MUST include these specific questions in the interview (translated to ${langText} if necessary):\n${customBank.map(q => `- [${q.category}] ${q.text}`).join('\n')}`
+    : '';
+
   const prompt = isArabic ? `
-أنت محاور تقني متخصص في شركة كونكريتو ريدي ميكس (صناعة الخرسانة والإنشاءات).
+أنت محاور تقني محترف في منصة TalentFlow (منصة توظيف مدعومة بالذكاء الاصطناعي).
 مهمتك: توليد 10 أسئلة مقابلة واقعية وحقيقية للوظيفة: "${jobTitle}".
 
 قواعد صارمة:
 1. الأسئلة يجب أن تكون باللغة العربية فقط.
-2. لا تستخدم الأسئلة التقليدية المملة مثل "ما هي نقاط قوتك؟" أو "أين ترى نفسك بعد 5 سنوات؟".
-3. كل سؤال يجب أن يكون محدداً لوظيفة "${jobTitle}" في بيئة العمل الميدانية الفعلية.
-4. اجعل الأسئلة تستحضر مواقف حقيقية، أرقام فعلية، أو قرارات صعبة.
-5. ابتعد عن الإنشاء والعموميات.
-
-توزيع الأسئلة:
+2. لا تستخدم الأسئلة التقليدية المملة.
+3. كل سؤال يجب أن يكون محدداً لوظيفة "${jobTitle}".
+${customContext}
+4. إذا وجد بنك أسئلة مخصص أعلاه، أدرج أسئلته ضمن الـ 10 أسئلة المطلوبة وقم بصياغتها بشكل احترافي.
+5. الباقي أكمله بناءً على التوزيع التالي:
 ${blueprint}
 ${cvContext}
 
 أخرج JSON array فقط يحتوي على 10 strings.
-مثال على سؤال جيد: "وصف لنا موقفاً واجهت فيه طبخة خرسانة مرفوضة في الموقع - كيف تعاملت مع العميل وكيف حليت المشكلة في نفس اليوم؟"
+مثال على سؤال جيد: "وصف لنا موقفاً واجهت فيه مشكلة تقنية طارئة أثناء العمل - كيف تعاملت معها وما النتيجة؟"
 مثال على سؤال ممنوع: "ما هي نقاط قوتك؟"` 
   : `
-You are a hard-nosed technical interviewer at Concreto Ready Mix (concrete & construction industry).
+You are a professional technical interviewer on TalentFlow AI recruitment platform.
 Your task: Generate exactly 10 realistic, specific interview questions for the role: "${jobTitle}".
 
 Strict Rules:
 1. Questions MUST be in English only.
-2. NEVER use cliché questions like "What are your strengths?" or "Where do you see yourself in 5 years?".
-3. Every question MUST be specific to the daily reality of a "${jobTitle}" in a construction/concrete environment.
-4. Ground questions in real situations: specific numbers, equipment names, failure scenarios, decision points.
-5. Avoid vague, philosophical, or classroom-style questions.
-
-Question Distribution:
+2. NEVER use cliché questions.
+3. Every question MUST be specific to the daily reality of a "${jobTitle}".
+${customContext}
+4. If a custom question bank is provided above, include those questions in the set and polish them professionally.
+5. Fill the rest based on the following distribution:
 ${blueprint}
 ${cvContext}
 
 Return ONLY a JSON array of exactly 10 strings.
-Example of a GOOD question: "You've just received a call that a concrete truck has been rejected on site due to high slump. The client is furious and the pour window is closing in 90 minutes. Walk me through your exact steps."
+Example of a GOOD question: "A critical system failure occurs during peak hours and your team is split across two active projects. Walk me through your exact decision-making process and first 30 minutes of action."
 Example of a BANNED question: "What are your strengths?"`;
 
   try {
@@ -199,7 +189,7 @@ export const evaluateInterview = async (answers, jobTitle = "Candidate") => {
 
   const formattedAnswers = answers.map((a, i) => `[Question ${i + 1}]: ${a.question}\n[Candidate Answer]: ${a.answer}`).join('\n\n');
 
-  const prompt = `You are a highly critical Industrial Psychologist and Senior Technical Auditor for Concreto Ready Mix. Your job is to perform a FAIL-SAFE evaluation of interview answers for the specific role of "${jobTitle}".
+  const prompt = `You are a highly critical Industrial Psychologist and Senior Technical Auditor for TalentFlow. Your job is to perform a FAIL-SAFE evaluation of interview answers for the specific role of "${jobTitle}".
 
 ### STRICT ROLE EXPECTATIONS FOR "${jobTitle}"
 You MUST penalize the candidate heavily if their answers lack the specific technical vocabulary, safety awareness, or operational knowledge expected for a "${jobTitle}". General or vague answers should receive a maximum score of 4/10.

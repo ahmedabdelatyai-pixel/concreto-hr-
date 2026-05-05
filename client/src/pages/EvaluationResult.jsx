@@ -82,6 +82,35 @@ function EvaluationResult() {
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
+          {/* CV AI Analysis Section */}
+          {useInterviewStore.getState().cvData && (
+            <div style={{ 
+              padding: '1.5rem', 
+              backgroundColor: 'rgba(59, 130, 246, 0.05)', 
+              borderRadius: 'var(--border-radius)', 
+              border: '1px solid rgba(59, 130, 246, 0.1)',
+              marginBottom: '1rem'
+            }}>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📄 {i18n.language === 'ar' ? 'تحليل السيرة الذاتية' : 'CV AI Analysis'}
+                <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}>
+                  {useInterviewStore.getState().cvData.technical_match}% Match
+                </span>
+              </h3>
+              <p style={{ fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--color-text)' }}>
+                {useInterviewStore.getState().cvData.summary}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
+                {useInterviewStore.getState().cvData.skills?.slice(0, 5).map((skill, i) => (
+                  <span key={i} style={{
+                    padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.05)',
+                    fontSize: '0.75rem', border: '1px solid var(--color-border)'
+                  }}>{skill}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Main Scores */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
             <span style={{ fontSize: '1.2rem' }}>{t('evaluation.behavior')} (40)</span>
