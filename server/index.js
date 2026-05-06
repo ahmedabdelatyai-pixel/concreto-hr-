@@ -73,12 +73,17 @@ const connectDB = async () => {
     const Company = require('./models/Company');
     const Job = require('./models/Job');
     const Applicant = require('./models/Applicant');
+    const Subscription = require('./models/Subscription');
+    const IntegrityLog = require('./models/IntegrityLog');
     
     await User.collection.createIndex({ username: 1, company: 1 }, { unique: true });
     await User.collection.createIndex({ email: 1 }, { unique: true });
     await Company.collection.createIndex({ email: 1 }, { unique: true });
     await Job.collection.createIndex({ company: 1 });
     await Applicant.collection.createIndex({ company: 1 });
+    await Subscription.collection.createIndex({ company: 1 }, { unique: true });
+    await IntegrityLog.collection.createIndex({ applicant: 1, timestamp: -1 });
+    await IntegrityLog.collection.createIndex({ company: 1, incidentType: 1 });
 
   } catch (err) {
     console.error('❌ Database connection error:', err.message);
@@ -86,6 +91,12 @@ const connectDB = async () => {
     dbConnected = false;
   }
 };
+
+// Vercel Serverless Function Support - Connect DB on each request
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
 // ============== ROUTES ==============
 
@@ -117,6 +128,10 @@ app.use('/api/auth', authRoutes);
 const applicantRoutes = require('./routes/applicantRoutes');
 app.use('/api/applicants', applicantRoutes);
 
+// Public Routes
+const publicRoutes = require('./routes/publicRoutes');
+app.use('/api/public', publicRoutes);
+
 // Job Routes
 const jobRoutes = require('./routes/jobRoutes');
 app.use('/api/jobs', jobRoutes);
@@ -124,6 +139,14 @@ app.use('/api/jobs', jobRoutes);
 // Company Routes
 const companyRoutes = require('./routes/companyRoutes');
 app.use('/api/company', companyRoutes);
+
+// Subscription Routes
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
+app.use('/api/subscriptions', subscriptionRoutes);
+
+// Integrity Routes
+const integrityRoutes = require('./routes/integrityRoutes');
+app.use('/api/integrity', integrityRoutes);
 
 // ============== ERROR HANDLING ==============
 
@@ -210,6 +233,9 @@ Environment: ${process.env.NODE_ENV || 'development'}
   }
 };
 
-startServer();
+// Start server if not running in a serverless environment
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;

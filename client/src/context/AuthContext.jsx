@@ -23,9 +23,12 @@ export const AuthProvider = ({ children }) => {
   const verifyToken = useCallback(async (token) => {
     try {
       setLoading(true);
+      setError(null);
+      console.log('Verifying token...');
       const response = await api.get('/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('Token verified:', response.data);
       setUser(response.data.user);
       setCompany(response.data.company);
       setError(null);

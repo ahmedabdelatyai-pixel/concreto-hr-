@@ -49,7 +49,7 @@ function LandingPage() {
           <button onClick={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
             {isArabic ? 'English' : 'العربية'}
           </button>
-          <button onClick={() => navigate('/admin/login')} className="btn btn-outline" style={{ border: 'none', color: 'rgba(255,255,255,0.7)' }}>
+          <button onClick={() => navigate('/login')} className="btn btn-outline" style={{ border: 'none', color: 'rgba(255,255,255,0.7)' }}>
             {isArabic ? 'لوحة التحكم' : 'Admin'}
           </button>
           <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '0.6rem 1.5rem', fontWeight: '600' }}>
@@ -89,7 +89,7 @@ function LandingPage() {
             <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem', boxShadow: '0 10px 40px rgba(252, 163, 17, 0.3)' }}>
               {isArabic ? 'قدم الآن كمرشح' : 'Apply as Candidate'}
             </button>
-            <button onClick={() => navigate('/admin/login')} className="btn btn-outline" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
+            <button onClick={() => navigate('/login')} className="btn btn-outline" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
               {isArabic ? 'عرض لوحة الشركات' : 'For Employers'}
             </button>
           </div>

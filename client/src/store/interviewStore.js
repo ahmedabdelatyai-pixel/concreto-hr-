@@ -9,6 +9,8 @@ export const useInterviewStore = create(
         email: '',
         role: '',
         jobTitle: '',
+        jobId: '',
+        customQuestions: [],
         source: 'Website',
       },
       customQuestions: [],
@@ -30,14 +32,14 @@ export const useInterviewStore = create(
         set({ generatedQuestions: questions });
       },
 
-      addAnswer: (question, answer) => set((state) => ({
-        interviewAnswers: [...state.interviewAnswers, { question, answer }]
+      addAnswer: (question, answer, category = 'Technical', weight = 1) => set((state) => ({
+        interviewAnswers: [...state.interviewAnswers, { question, answer, category, weight }]
       })),
 
       setEvaluation: (evaluation) => set({ evaluation }),
 
       reset: () => set({
-        candidate: { name: '', email: '', role: '', jobTitle: '' },
+        candidate: { name: '', email: '', role: '', jobTitle: '', jobId: '', customQuestions: [], source: 'Website' },
         cvData: null,
         cvFile: null,
         generatedQuestions: [],

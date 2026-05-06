@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const EncryptionService = require('../utils/encryption');
 
 const applicantSchema = new mongoose.Schema({
   company: {
@@ -8,8 +9,17 @@ const applicantSchema = new mongoose.Schema({
   },
   candidate: {
     name: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String },
+    email: {
+      type: String,
+      required: true,
+      set: val => EncryptionService.encrypt(val), // Encrypt email
+      get: val => EncryptionService.decrypt(val) // Decrypt when retrieving
+    },
+    phone: {
+      type: String,
+      set: val => val ? EncryptionService.encrypt(val) : val, // Encrypt phone if provided
+      get: val => val ? EncryptionService.decrypt(val) : val // Decrypt when retrieving
+    },
     role: { type: String },
     jobTitle: { type: String },
   },
@@ -45,7 +55,11 @@ const applicantSchema = new mongoose.Schema({
   },
   answers: [{
     question: String,
-    answer: String
+    answer: String,
+    category: { type: String, enum: ['Technical', 'Behavioral', 'Attitude', 'Hybrid'], default: 'Technical' },
+    weight: { type: Number, default: 1, min: 0.1, max: 3 },
+    score: Number,
+    aiFeedback: String
   }],
   appliedAt: { type: Date, default: Date.now },
   status: { 
@@ -56,5 +70,8 @@ const applicantSchema = new mongoose.Schema({
   source: { type: String, default: 'Website' },
   jobId: { type: String }
 });
+
+applicantSchema.set('toJSON', { getters: true });
+applicantSchema.set('toObject', { getters: true });
 
 module.exports = mongoose.model('Applicant', applicantSchema);

@@ -36,13 +36,11 @@ const AuthPage = () => {
       if (isLogin) {
         // Login
         await login(formData.username, formData.password);
-        setSuccess('تم تسجيل الدخول بنجاح | Logged in successfully');
-        setTimeout(() => navigate('/admin'), 1500);
+        navigate('/admin');
       } else {
         // Register
         await register(formData);
-        setSuccess('تم التسجيل بنجاح! | Registration successful!');
-        setTimeout(() => navigate('/admin'), 1500);
+        navigate('/admin');
       }
     } catch (err) {
       console.error('Auth error:', err);

@@ -14,7 +14,8 @@ const jobSchema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   customQuestions: [{
     text: String,
-    category: { type: String, enum: ['Technical', 'Behavioral', 'Hybrid'], default: 'Technical' }
+    category: { type: String, enum: ['Technical', 'Behavioral', 'Attitude', 'Hybrid'], default: 'Technical' },
+    weight: { type: Number, default: 1, min: 0.1, max: 3 }
   }],
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

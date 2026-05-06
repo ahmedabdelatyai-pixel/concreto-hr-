@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminStore } from '../store/adminStore';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
@@ -10,8 +11,7 @@ function AdminDashboard() {
   const isAr = i18n.language === 'ar';
   const t = (en, ar) => isAr ? ar : en;
   const reportRef = useRef(null);
-  const isAdminLoggedIn = useAdminStore(state => state.isAdminLoggedIn);
-  const adminLogout = useAdminStore(state => state.adminLogout);
+  const { isAuthenticated, logout, user, company } = useAuth();
   const jobs = useAdminStore(state => state.jobs);
   const addJob = useAdminStore(state => state.addJob);
   const deleteJob = useAdminStore(state => state.deleteJob);
@@ -48,11 +48,11 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (isAdminLoggedIn) {
+    if (isAuthenticated) {
       fetchJobs();
       fetchApplicants();
     }
-  }, [isAdminLoggedIn, fetchJobs, fetchApplicants]);
+  }, [isAuthenticated, fetchJobs, fetchApplicants]);
 
   const handleDownloadPDF = () => {
     const element = reportRef.current;
@@ -82,8 +82,8 @@ function AdminDashboard() {
   };
 
   // Redirect if not logged in
-  if (!isAdminLoggedIn) {
-    navigate('/admin/login');
+  if (!isAuthenticated) {
+    navigate('/login');
     return null;
   }
 
@@ -116,7 +116,7 @@ function AdminDashboard() {
   };
 
   const handleLogout = () => {
-    adminLogout();
+    logout();
     navigate('/');
   };
 
@@ -237,6 +237,13 @@ function AdminDashboard() {
             style={{ padding: '0.6rem 1.5rem' }}
           >
             📋 {t('Jobs', 'الوظائف')} ({jobs.length})
+          </button>
+          <button
+            onClick={() => { setActiveTab('integrity'); setSelectedApplicant(null); }}
+            className={activeTab === 'integrity' ? 'btn btn-primary' : 'btn btn-outline'}
+            style={{ padding: '0.6rem 1.5rem', borderColor: '#ef4444', color: activeTab === 'integrity' ? '#fff' : '#ef4444' }}
+          >
+            🛡️ {t('Integrity', 'النزاهة')}
           </button>
         </div>
 
@@ -629,7 +636,74 @@ function AdminDashboard() {
             )}
           </div>
         )}
+        {/* ========== INTEGRITY TAB ========== */}
+        {activeTab === 'integrity' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0 }}>🛡️ {t('Interview Integrity Logs', 'سجلات نزاهة المقابلات')}</h3>
+              <button className="btn btn-outline" onClick={fetchIntegrityLogs} disabled={loadingLogs}>
+                {loadingLogs ? '...' : '🔄 ' + t('Refresh', 'تحديث')}
+              </button>
+            </div>
 
+            {integrityLogs.length === 0 ? (
+              <div className="card text-center" style={{ padding: '3rem' }}>
+                <p className="text-muted">{t('No integrity incidents reported.', 'لا توجد مخالفات مسجلة.')}</p>
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={thStyle}>{t('Candidate', 'المرشح')}</th>
+                      <th style={thStyle}>{t('Incident', 'المخالفة')}</th>
+                      <th style={thStyle}>{t('Severity', 'الخطورة')}</th>
+                      <th style={thStyle}>{t('Details', 'التفاصيل')}</th>
+                      <th style={thStyle}>{t('Time', 'الوقت')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {integrityLogs.map((log) => (
+                      <tr key={log._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td style={tdStyle}>
+                          <div style={{ fontWeight: '600' }}>{log.applicant?.candidate?.name || 'N/A'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{log.applicant?.candidate?.email}</div>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ 
+                            padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem',
+                            backgroundColor: 'rgba(255,255,255,0.05)', fontWeight: '600'
+                          }}>
+                            {log.incidentType.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ 
+                            color: log.severity === 'critical' ? '#ef4444' : (log.severity === 'high' ? '#f97316' : '#fca311'),
+                            fontWeight: 'bold', fontSize: '0.85rem'
+                          }}>
+                            {log.severity.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={{ fontSize: '0.85rem' }}>{log.description}</div>
+                          {log.sessionData && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                              Q: {log.sessionData.questionNumber} | Time: {log.sessionData.timeRemaining}s
+                            </div>
+                          )}
+                        </td>
+                        <td style={{...tdStyle, fontSize: '0.8rem', color: 'var(--color-text-muted)'}}>
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ========== APPLICANT DETAIL VIEW ========== */}
         {activeTab === 'applicants' && selectedApplicant && (

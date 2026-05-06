@@ -126,12 +126,16 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
     : '';
 
   const customContext = customBank.length > 0
-    ? `\nSTRICT REQUIREMENT: You MUST include these specific questions in the interview (translated to ${langText} if necessary):\n${customBank.map(q => `- [${q.category}] ${q.text}`).join('\n')}`
+    ? `\nSTRICT REQUIREMENT: You MUST include these specific questions from the company in the interview (translated to ${langText} if necessary):\n${customBank.map((q, idx) => {
+        const qText = typeof q === 'string' ? q : q.text || '';
+        const qCat = typeof q === 'string' ? 'Technical' : (q.category || 'Technical');
+        return `- [${qCat}] ${qText}`;
+      }).join('\n')}`
     : '';
 
   const prompt = isArabic ? `
 أنت محاور تقني محترف في منصة TalentFlow (منصة توظيف مدعومة بالذكاء الاصطناعي).
-مهمتك: توليد 10 أسئلة مقابلة واقعية وحقيقية للوظيفة: "${jobTitle}".
+مهمتك: توليد 10 أسئلة مقابلة واقعية وحقيقية للوظيفة: "${jobTitle}" مع تصنيف كل سؤال ووزنه.
 
 قواعد صارمة:
 1. الأسئلة يجب أن تكون باللغة العربية فقط.
@@ -139,16 +143,17 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
 3. كل سؤال يجب أن يكون محدداً لوظيفة "${jobTitle}".
 ${customContext}
 4. إذا وجد بنك أسئلة مخصص أعلاه، أدرج أسئلته ضمن الـ 10 أسئلة المطلوبة وقم بصياغتها بشكل احترافي.
-5. الباقي أكمله بناءً على التوزيع التالي:
+5. الباقي أكمله بناءً على التوزيع التالي مع التصنيف والوزن:
 ${blueprint}
 ${cvContext}
 
-أخرج JSON array فقط يحتوي على 10 strings.
-مثال على سؤال جيد: "وصف لنا موقفاً واجهت فيه مشكلة تقنية طارئة أثناء العمل - كيف تعاملت معها وما النتيجة؟"
-مثال على سؤال ممنوع: "ما هي نقاط قوتك؟"` 
+أخرج JSON array فقط يحتوي على 10 objects بهذا الشكل:
+[{"question": "السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]
+مثال على سؤال جيد: {"question": "وصف لنا موقفاً واجهت فيه مشكلة تقنية طارئة أثناء العمل - كيف تعاملت معها وما النتيجة؟", "category": "Behavioral", "weight": 1.2}
+مثال على سؤال ممنوع: {"question": "ما هي نقاط قوتك؟", "category": "Attitude", "weight": 1.0}` 
   : `
 You are a professional technical interviewer on TalentFlow AI recruitment platform.
-Your task: Generate exactly 10 realistic, specific interview questions for the role: "${jobTitle}".
+Your task: Generate exactly 10 realistic, specific interview questions for the role: "${jobTitle}" with category classification and weight for each.
 
 Strict Rules:
 1. Questions MUST be in English only.
@@ -156,20 +161,34 @@ Strict Rules:
 3. Every question MUST be specific to the daily reality of a "${jobTitle}".
 ${customContext}
 4. If a custom question bank is provided above, include those questions in the set and polish them professionally.
-5. Fill the rest based on the following distribution:
+5. Fill the rest based on the following distribution with category and weight:
 ${blueprint}
 ${cvContext}
 
-Return ONLY a JSON array of exactly 10 strings.
-Example of a GOOD question: "A critical system failure occurs during peak hours and your team is split across two active projects. Walk me through your exact decision-making process and first 30 minutes of action."
-Example of a BANNED question: "What are your strengths?"`;
+Return ONLY a JSON array of exactly 10 objects in this format:
+[{"question": "Question here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]
+Example of a GOOD question: {"question": "A critical system failure occurs during peak hours and your team is split across two active projects. Walk me through your exact decision-making process and first 30 minutes of action.", "category": "Behavioral", "weight": 1.2}
+Example of a BANNED question: {"question": "What are your strengths?", "category": "Attitude", "weight": 1.0}`;
 
   try {
     const result = await callGemini(apiKey, prompt, true, 0.85);
-    if (Array.isArray(result) && result.length >= 10) return result.slice(0, 10);
+    if (Array.isArray(result) && result.length >= 10) {
+      // Ensure each question has category and weight
+      return result.slice(0, 10).map(q => ({
+        question: typeof q === 'string' ? q : q.question,
+        category: q.category || 'Technical',
+        weight: q.weight || 1
+      }));
+    }
     // If Gemini returns an object with a key containing the array
     const firstArray = Object.values(result).find(v => Array.isArray(v));
-    if (firstArray && firstArray.length >= 10) return firstArray.slice(0, 10);
+    if (firstArray && firstArray.length >= 10) {
+      return firstArray.slice(0, 10).map(q => ({
+        question: typeof q === 'string' ? q : q.question,
+        category: q.category || 'Technical',
+        weight: q.weight || 1
+      }));
+    }
     return null;
   } catch (error) {
     console.error('Gemini Question Generation Error:', error);
@@ -179,35 +198,70 @@ Example of a BANNED question: "What are your strengths?"`;
 
 
 
-export const evaluateInterview = async (answers, jobTitle = "Candidate") => {
+export const evaluateInterview = async (answers, jobTitle = "Candidate", questionCategories = []) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
     console.warn("No Gemini API key found. Falling back to Mock Evaluation.");
-    return fallbackMockEvaluation(answers);
+    return fallbackMockEvaluation(answers, questionCategories);
   }
 
-  const formattedAnswers = answers.map((a, i) => `[Question ${i + 1}]: ${a.question}\n[Candidate Answer]: ${a.answer}`).join('\n\n');
+  // Map answers with categories and weights
+  const formattedAnswers = answers.map((a, i) => {
+    const category = questionCategories[i] || 'Technical';
+    const weight = a.weight || 1;
+    return `[Question ${i + 1}] (${category}, Weight: ${weight}x): ${a.question}\n[Candidate Answer]: ${a.answer}`;
+  }).join('\n\n');
 
-  const prompt = `You are a highly critical Industrial Psychologist and Senior Technical Auditor for TalentFlow. Your job is to perform a FAIL-SAFE evaluation of interview answers for the specific role of "${jobTitle}".
+  const prompt = `You are a Senior Industrial Psychologist and Technical Interview Auditor for TalentFlow AI recruitment platform. Your mission is to perform a rigorous, unbiased evaluation that distinguishes between genuine behavioral traits and diplomatic/canned responses.
 
-### STRICT ROLE EXPECTATIONS FOR "${jobTitle}"
-You MUST penalize the candidate heavily if their answers lack the specific technical vocabulary, safety awareness, or operational knowledge expected for a "${jobTitle}". General or vague answers should receive a maximum score of 4/10.
+CRITICAL ANALYSIS FRAMEWORK:
 
-### SCORING SYSTEM (0-10 Rubric per question)
+### DISTINGUISHING AUTHENTIC vs DIPLOMATIC RESPONSES
+- **Authentic Responses**: Include specific details, concrete examples, measurable outcomes, and personal reflections. Show genuine problem-solving approaches and learning experiences.
+- **Diplomatic/Canned Responses**: Generic phrases like "I work well in teams," "I'm a hard worker," "I communicate effectively." Lack specific examples, timelines, or measurable results.
+
+### STAR METHOD ENFORCEMENT
+Every behavioral question MUST be evaluated on STAR method usage:
+- **Situation**: Did they describe the specific context/problem?
+- **Task**: Did they explain their specific responsibility?
+- **Action**: Did they detail the steps they took (not "we" but "I")?
+- **Result**: Did they provide measurable outcomes and lessons learned?
+
+PENALIZE HEAVILY (subtract 3-5 points) for:
+- Not using STAR method in behavioral questions
+- Vague or generic answers
+- Diplomatic responses without examples
+- Answers that sound rehearsed or scripted
+
+### QUESTION CATEGORY ANALYSIS
+**Technical Questions**: Evaluate depth of knowledge, problem-solving approach, and industry expertise.
+**Behavioral Questions**: Require complete STAR method. Penalize generic teamwork/safety answers.
+**Attitude Questions**: Look for genuine work ethic, accountability, and professional maturity.
+**Hybrid Questions**: Combine technical accuracy with behavioral demonstration.
+
+### SCORING SYSTEM (0-10 Rubric per question, weighted)
 - 0: Gibberish, random letters, "ok/yes/no", completely irrelevant.
 - 1-3: Poor, unprofessional, or generic response lacking any knowledge of the "${jobTitle}" role.
 - 4-6: Average, meets basic requirements but lacks depth or specific examples.
 - 7-8: Good, professional, shows solid experience and industry knowledge.
 - 9-10: Exceptional, highly detailed, demonstrates absolute mastery of the "${jobTitle}" role, leadership, and safety-first mindset.
 
-### CATEGORY MAPPING
-1. BEHAVIOR (Q1-Q3): Total Max 40. Sum the scores of Q1-Q3 and scale to 40.
-2. ATTITUDE (Q4-Q6): Total Max 30. Sum the scores of Q4-Q6 and scale to 30.
-3. PERSONALITY (Q7-Q10): Total Max 30. Sum the scores of Q7-Q10 and scale to 30.
+### WEIGHTED SCORING BY CATEGORY
+- Technical questions: Base score × weight (default 1.0)
+- Behavioral questions: Base score × weight (default 1.0) - focus on STAR method usage
+- Attitude questions: Base score × weight (default 1.0) - evaluate professionalism and work ethic
+- Hybrid questions: Base score × weight (default 1.2) - combined technical + behavioral assessment
+
+### CATEGORY MAPPING WITH WEIGHTS
+1. BEHAVIOR (Q1-Q3): Sum weighted scores, scale to 40 max
+2. ATTITUDE (Q4-Q6): Sum weighted scores, scale to 30 max  
+3. PERSONALITY (Q7-Q10): Sum weighted scores, scale to 30 max
 
 ### MANDATORY RULES
 - If ANY answer is random typing (e.g., "asdasd", "hhhh", "123") -> Score 0 for that question.
+- Penalize diplomatic answers: Subtract 2 points for generic phrases.
+- Require STAR method for behavioral questions: -3 points if missing.
 - You MUST provide a clear "reasoning" for each score category.
 - Total score must be the mathematical sum of the three category scores.
 - Be extremely stingy with high scores. Only 80+ for truly impressive candidates.
@@ -269,27 +323,41 @@ const isGibberish = (text) => {
 };
 
 // ============ Fallback Mock Evaluation ============
-const fallbackMockEvaluation = (answers) => {
-  const scoreAnswer = (text) => {
+const fallbackMockEvaluation = (answers, questionCategories = []) => {
+  const scoreAnswer = (text, category = 'Technical', weight = 1) => {
     if (isGibberish(text)) return 0;
     const lower = text.toLowerCase();
     let score = 4;
     if (text.length > 40) score += 2;
     if (text.length > 100) score += 2;
     if (text.length > 200) score += 2;
+    
     const keywords = ['team', 'safety', 'plan', 'resolve', 'communicate', 'listen', 'focus', 'accuracy', 'quality', 'schedule', 'manage', 'lead', 'inspect', 'test', 'report', 'حل', 'فريق', 'سلامة', 'جودة', 'استمع', 'مشكلة', 'مدير', 'عمل', 'فحص', 'تقرير', 'خطة'];
     let hits = 0;
     keywords.forEach(kw => { if (lower.includes(kw)) hits++; });
     score += Math.min(hits * 1.5, 4);
-    return Math.min(Math.round(score), 10);
+    
+    // Apply category bonus
+    if (category === 'Behavioral' && (lower.includes('situation') || lower.includes('task') || lower.includes('action') || lower.includes('result'))) {
+      score += 1; // STAR method bonus
+    }
+    
+    return Math.min(Math.round(score * weight), 10);
   };
 
   const padded = [...answers];
-  while (padded.length < 10) padded.push({ answer: '' });
+  while (padded.length < 10) padded.push({ answer: '', category: 'Technical', weight: 1 });
 
-  const bScores = [scoreAnswer(padded[0].answer), scoreAnswer(padded[1].answer), scoreAnswer(padded[2].answer)];
-  const aScores = [scoreAnswer(padded[3].answer), scoreAnswer(padded[4].answer), scoreAnswer(padded[5].answer)];
-  const pScores = [scoreAnswer(padded[6].answer), scoreAnswer(padded[7].answer), scoreAnswer(padded[8].answer), scoreAnswer(padded[9].answer)];
+  const bScores = [scoreAnswer(padded[0].answer, questionCategories[0], padded[0].weight), 
+                   scoreAnswer(padded[1].answer, questionCategories[1], padded[1].weight), 
+                   scoreAnswer(padded[2].answer, questionCategories[2], padded[2].weight)];
+  const aScores = [scoreAnswer(padded[3].answer, questionCategories[3], padded[3].weight), 
+                   scoreAnswer(padded[4].answer, questionCategories[4], padded[4].weight), 
+                   scoreAnswer(padded[5].answer, questionCategories[5], padded[5].weight)];
+  const pScores = [scoreAnswer(padded[6].answer, questionCategories[6], padded[6].weight), 
+                   scoreAnswer(padded[7].answer, questionCategories[7], padded[7].weight), 
+                   scoreAnswer(padded[8].answer, questionCategories[8], padded[8].weight), 
+                   scoreAnswer(padded[9].answer, questionCategories[9], padded[9].weight)];
 
   const bRaw = bScores.reduce((a, b) => a + b, 0);
   const aRaw = aScores.reduce((a, b) => a + b, 0);

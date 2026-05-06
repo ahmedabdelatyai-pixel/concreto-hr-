@@ -17,6 +17,7 @@ import EvaluationResult from './pages/EvaluationResult';
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
+import OwnerPanel from './pages/OwnerPanel';
 
 function App() {
   const { i18n } = useTranslation();
@@ -33,12 +34,15 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/admin/login" element={<AuthPage />} />
+          <Route path="/apply" element={<CandidateProfile />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="/profile" element={<CandidateProfile />} />
           <Route path="/upload-cv" element={<CvUpload />} />
           <Route path="/interview" element={<InterviewPhase />} />
           <Route path="/completion" element={<CompletionScreen />} />
           <Route path="/evaluation" element={<EvaluationResult />} />
+          <Route path="/owner" element={<OwnerPanel />} />
 
           {/* Protected Admin Routes */}
           <Route

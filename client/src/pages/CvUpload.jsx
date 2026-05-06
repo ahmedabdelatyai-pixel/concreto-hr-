@@ -43,7 +43,25 @@ function CvUpload() {
         const atsResult = await analyzeCv(file);
         setCvData(atsResult);
 
-        // 2. Generate Tailored Questions based on Job Title AND CV background
+        // 2. Initialize Applicant Record Early (for integrity logging)
+        try {
+          const initRes = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/public/applicants/init`, {
+            candidate: {
+              name: candidate.name,
+              email: candidate.email,
+              jobTitle: candidate.jobTitle
+            },
+            jobId: candidate.jobId,
+            source: candidate.source || 'Website'
+          });
+          if (initRes.data.applicantId) {
+            useInterviewStore.getState().setCandidateInfo({ _id: initRes.data.applicantId });
+          }
+        } catch (e) {
+          console.error("Failed to init applicant:", e);
+        }
+
+        // 3. Generate Tailored Questions based on Job Title AND CV background
         const customBank = useInterviewStore.getState().candidate.customQuestions;
         const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank);
         if (dynamicQuestions && dynamicQuestions.length > 0) {

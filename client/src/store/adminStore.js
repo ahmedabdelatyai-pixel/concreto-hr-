@@ -21,15 +21,19 @@ export const useAdminStore = create(
       
       fetchJobs: async () => {
         try {
+          console.log('Fetching jobs...');
           const res = await jobService.getAll();
+          console.log('Jobs fetched:', res.data);
           set({ jobs: res.data });
         } catch (err) {
           console.error("Error fetching jobs:", err);
+          set({ jobs: [] });
         }
       },
 
       addJob: async (job) => {
         try {
+          console.log('Adding job:', job);
           const res = await jobService.create(job);
           set((state) => ({ jobs: [...state.jobs, res.data] }));
         } catch (err) {
@@ -52,10 +56,13 @@ export const useAdminStore = create(
 
       fetchApplicants: async () => {
         try {
+          console.log('Fetching applicants...');
           const res = await applicantService.getAll();
+          console.log('Applicants fetched:', res.data);
           set({ applicants: res.data });
         } catch (err) {
           console.error("Error fetching applicants:", err);
+          set({ applicants: [] });
         }
       },
 

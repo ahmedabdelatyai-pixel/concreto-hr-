@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useInterviewStore } from '../store/interviewStore';
 import { useAdminStore } from '../store/adminStore';
 import { evaluateInterview } from '../services/aiApi';
 
 function EvaluationResult() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const savedRef = useRef(false);
@@ -16,44 +17,51 @@ function EvaluationResult() {
   const evaluation = useInterviewStore(state => state.evaluation);
   const setEvaluation = useInterviewStore(state => state.setEvaluation);
   const addApplicant = useAdminStore(state => state.addApplicant);
+  const generatedQuestions = useInterviewStore(state => state.generatedQuestions);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
       let evalResult = evaluation;
       if (!evalResult) {
-        evalResult = await evaluateInterview(answers, candidate.jobTitle);
+        // Extract categories from questions for weighted evaluation
+        const questionCategories = generatedQuestions.map(q => 
+          typeof q === 'string' ? 'Technical' : (q.category || 'Technical')
+        );
+        evalResult = await evaluateInterview(answers, candidate.jobTitle, questionCategories);
         setEvaluation(evalResult);
       }
 
-      // Save applicant to admin store (once)
-      if (!savedRef.current && evalResult) {
+      // Save applicant results to backend (once)
+      if (!savedRef.current && evalResult && candidate._id) {
         savedRef.current = true;
         
-        // Map scores to backend structure
-        const mappedApplicant = {
-          candidate,
-          jobId: candidate.jobId,
-          answers,
-          cvData: useInterviewStore.getState().cvData,
-          cvFile: useInterviewStore.getState().cvFile,
-          evaluation: {
-            ...evalResult,
-            scores: {
-              behavior: evalResult.behavior_score,
-              attitude: evalResult.attitude_score,
-              personality: evalResult.personality_score
+        try {
+          const mappedData = {
+            answers,
+            cvData: useInterviewStore.getState().cvData,
+            cvFile: useInterviewStore.getState().cvFile,
+            evaluation: {
+              ...evalResult,
+              scores: {
+                behavior: evalResult.behavior_score,
+                attitude: evalResult.attitude_score,
+                personality: evalResult.personality_score
+              }
             }
-          }
-        };
-        
-        addApplicant(mappedApplicant);
+          };
+          
+          await axios.patch(`${import.meta.env.VITE_API_URL || '/api'}/public/applicants/${candidate._id}/submit`, mappedData);
+          console.log('Application submitted successfully');
+        } catch (error) {
+          console.error("Failed to submit application:", error);
+        }
       }
 
       setLoading(false);
     };
     
     fetchEvaluation();
-  }, [answers, evaluation, setEvaluation, candidate, addApplicant]);
+  }, [answers, evaluation, setEvaluation, candidate, generatedQuestions]);
 
   const getStatusColor = (score) => {
     if (score >= 80) return 'var(--color-success)';
@@ -227,8 +235,8 @@ function EvaluationResult() {
         </div>
 
         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <button className="btn btn-outline" onClick={() => navigate('/')}>
-            Return Home
+          <button className="btn btn-primary" onClick={() => navigate('/')} style={{ padding: '0.7rem 2rem' }}>
+            {i18n.language === 'ar' ? 'العودة للرئيسية' : 'Return Home'}
           </button>
         </div>
       </div>

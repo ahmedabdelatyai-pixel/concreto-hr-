@@ -7,8 +7,18 @@ function CompletionScreen() {
 
   return (
     <div className="split-layout fade-in">
-      <div className="split-image" style={{ backgroundImage: "url('/pump-img.png')" }}>
-        {/* Pump image on the left/right depending on RTL */}
+      <div className="split-image" style={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        {/* Decorative success pattern */}
+        <svg width="300" height="300" viewBox="0 0 300 300" fill="none">
+          <circle cx="150" cy="150" r="140" stroke="rgba(255,255,255,0.1)" strokeWidth="40" />
+          <circle cx="150" cy="150" r="100" stroke="rgba(255,255,255,0.15)" strokeWidth="30" />
+          <path d="M 100 150 L 140 190 L 200 110" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
       </div>
       <div className="split-content">
         <div className="card text-center" style={{ border: 'none', boxShadow: 'none', backgroundColor: 'transparent' }}>

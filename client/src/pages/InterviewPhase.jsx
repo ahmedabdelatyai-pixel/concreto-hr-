@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useInterviewStore } from '../store/interviewStore';
 import { generateQuestions } from '../services/aiApi';
 
@@ -64,18 +65,106 @@ function InterviewPhase() {
 
   const isArabic = i18n.language === 'ar';
   
-  // Anti-Cheat (Focus Loss)
+  // Anti-Cheat (Enhanced Detection)
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!isInitializing && timerActive && document.hidden) {
+        setShowWarning(true);
+        setCheatAttempts(prev => prev + 1);
+        
+        // Log integrity incident
+        logIntegrityIncident('tab_switch', 'Candidate switched tabs or minimized window', 'medium', {
+          questionNumber: currentStep + 1,
+          timeRemaining: timeLeft,
+          totalIncidents: cheatAttempts + 1
+        });
+      }
+    };
+
     const handleBlur = () => {
       if (!isInitializing && timerActive && !showWarning) {
         setShowWarning(true);
         setCheatAttempts(prev => prev + 1);
+        
+        logIntegrityIncident('window_blur', 'Window lost focus', 'low', {
+          questionNumber: currentStep + 1,
+          timeRemaining: timeLeft,
+          totalIncidents: cheatAttempts + 1
+        });
       }
     };
-    
+
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      logIntegrityIncident('right_click', 'Right-click detected', 'low', {
+        questionNumber: currentStep + 1,
+        timeRemaining: timeLeft
+      });
+    };
+
+    const handleKeyDown = (e) => {
+      // Detect common cheating shortcuts
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'v' || e.key === 'a')) {
+        logIntegrityIncident('copy_paste', `Ctrl+${e.key.toUpperCase()} detected`, 'high', {
+          questionNumber: currentStep + 1,
+          timeRemaining: timeLeft
+        });
+      }
+    };
+
+    // Detect dev tools
+    const checkDevTools = () => {
+      if (window.outerHeight - window.innerHeight > 200 || window.outerWidth - window.innerWidth > 200) {
+        logIntegrityIncident('dev_tools', 'Developer tools detected', 'critical', {
+          questionNumber: currentStep + 1,
+          timeRemaining: timeLeft
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
-    return () => window.removeEventListener('blur', handleBlur);
-  }, [isInitializing, timerActive, showWarning]);
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown);
+    
+    const devToolsInterval = setInterval(checkDevTools, 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+      clearInterval(devToolsInterval);
+    };
+  }, [isInitializing, timerActive, showWarning, currentStep, timeLeft, cheatAttempts]);
+
+  // Log integrity incident function
+  const logIntegrityIncident = async (type, description, severity, sessionData) => {
+    try {
+      const candidate = useInterviewStore.getState().candidate;
+      if (candidate && candidate._id) {
+        await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/public/integrity`, {
+          applicantId: candidate._id,
+          incidentType: type,
+          description,
+          severity,
+          sessionData
+        });
+      }
+    } catch (error) {
+      console.error('Failed to log integrity incident:', error);
+      // Store locally as fallback
+      const incidents = JSON.parse(localStorage.getItem('integrityIncidents') || '[]');
+      incidents.push({
+        type,
+        description,
+        severity,
+        timestamp: new Date().toISOString(),
+        sessionData
+      });
+      localStorage.setItem('integrityIncidents', JSON.stringify(incidents));
+    }
+  };
 
   // Timer logic — uses ref to call handleSend to avoid stale closure
   useEffect(() => {
@@ -102,22 +191,40 @@ function InterviewPhase() {
 
   const startInterview = useCallback((qs) => {
     setMessages([]);
+    const customQCount = candidate.customQuestions ? candidate.customQuestions.length : 0;
+    const customQInfo = customQCount > 0 
+      ? (isArabic 
+          ? ` بما فيها ${customQCount} أسئلة مخصصة من الشركة`
+          : ` including ${customQCount} company-specific questions`)
+      : '';
     const greet = isArabic 
-      ? `مرحباً ${candidate.name || ''}! أنا المحاور الذكي الخاص بكونكريتو. سأطرح عليك ${qs.length} أسئلة لتقييم مهاراتك كـ ${candidate.jobTitle}. أجب بصدق وتفصيل، ولديك دقيقتان لكل سؤال.`
-      : `Hello ${candidate.name || ''}! I'm the AI Interviewer. I will ask you ${qs.length} questions to evaluate your skills as a ${candidate.jobTitle}. You have 2 minutes per question.`;
+      ? `مرحباً ${candidate.name || ''}! أنا المحاور الذكي. سأطرح عليك ${qs.length} أسئلة لتقييم مهاراتك كـ ${candidate.jobTitle}${customQInfo}. أجب بصدق وتفصيل، ولديك دقيقتان لكل سؤال.`
+      : `Hello ${candidate.name || ''}! I'm the AI Interviewer. I will ask you ${qs.length} questions to evaluate your skills as a ${candidate.jobTitle}${customQInfo}. You have 2 minutes per question.`;
 
     setMessages([{ id: Date.now(), role: 'ai', text: greet, typed: false }]);
-  }, [candidate.name, candidate.jobTitle, isArabic]);
+  }, [candidate.name, candidate.jobTitle, candidate.customQuestions, isArabic]);
 
   useEffect(() => {
     const init = async () => {
-      if (generatedQuestions && generatedQuestions.length >= 10) {
-        startInterview(generatedQuestions);
+      // Prepare custom questions from the job (if any)
+      const customQs = candidate.customQuestions ? 
+        candidate.customQuestions.map(q => typeof q === 'string' ? q : q.text) : [];
+      
+      if (generatedQuestions && generatedQuestions.length > 0) {
+        // Combine custom questions + generated questions
+        const allQuestions = [...customQs, ...generatedQuestions];
+        startInterview(allQuestions);
       } else if (candidate.jobTitle) {
-        const qs = await generateQuestions(candidate.jobTitle, cvData, i18n.language);
-        if (qs && qs.length >= 10) {
-          setQuestions(qs);
-          startInterview(qs);
+        const qs = await generateQuestions(candidate.jobTitle, cvData, i18n.language, customQs);
+        if (qs && qs.length > 0) {
+          // Combine custom + generated
+          const allQuestions = [...customQs, ...qs];
+          setQuestions(allQuestions);
+          startInterview(allQuestions);
+        } else if (customQs.length > 0) {
+          // If only custom questions exist, use them
+          setQuestions(customQs);
+          startInterview(customQs);
         } else {
           // Fallback - role-specific basic questions
           const role = candidate.jobTitle || 'موظف';
@@ -241,7 +348,17 @@ function InterviewPhase() {
     if ((!answer.trim() && !force) || (!inputEnabled && !force)) return;
 
     const userMsg = answer.trim() || (isArabic ? "[لم يتم تقديم إجابة ضمن الوقت المحدد]" : "[No answer provided in time]");
-    addAnswer(questions[currentStep], userMsg);
+    
+    // Get current question with category and weight
+    const currentQ = questions[currentStep];
+    const questionData = {
+      question: typeof currentQ === 'string' ? currentQ : currentQ.question,
+      answer: userMsg,
+      category: currentQ.category || 'Technical',
+      weight: currentQ.weight || 1
+    };
+    
+    addAnswer(questionData.question, userMsg, questionData.category, questionData.weight);
     
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: userMsg, typed: true }]);
     setAnswer('');
@@ -259,7 +376,10 @@ function InterviewPhase() {
         const ack = isArabic ? ['شكراً، ننتقل للتالي:', 'ممتاز، السؤال التالي:'] : ['Thank you, moving on:', 'Got it, next question:'];
         const randomAck = ack[Math.floor(Math.random() * ack.length)];
         
-        setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: randomAck + " " + questions[nextStep], typed: false }]);
+        const nextQ = questions[nextStep];
+        const nextQuestionText = typeof nextQ === 'string' ? nextQ : nextQ.question;
+        
+        setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: randomAck + " " + nextQuestionText, typed: false }]);
         setIsTyping(false);
         setCurrentStep(nextStep);
       }, 1500);
