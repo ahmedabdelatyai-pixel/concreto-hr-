@@ -4,6 +4,7 @@ import { useAdminStore } from '../store/adminStore';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
+import api, { applicantService, jobService, integrityService } from '../services/api';
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -23,6 +24,8 @@ function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('analytics');
   const [showAddJob, setShowAddJob] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const [integrityLogs, setIntegrityLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [newJob, setNewJob] = useState({ 
     title_en: '', 
     title_ar: '', 
@@ -35,24 +38,39 @@ function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterJob, setFilterJob] = useState('all');
 
+  const fetchIntegrityLogs = async () => {
+    try {
+      setLoadingLogs(true);
+      const res = await integrityService.getAll();
+      setIntegrityLogs(res.data.logs || []);
+    } catch (err) {
+      console.error("Failed to fetch integrity logs:", err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
   useEffect(() => {
-    const checkServer = async () => {
+    const checkStatus = async () => {
       try {
-        await axios.get('/api/');
+        await api.get('/health');
         setServerStatus('online');
-      } catch (e) {
+      } catch (err) {
         setServerStatus('offline');
       }
     };
-    checkServer();
+    checkStatus();
   }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchJobs();
       fetchApplicants();
+      if (activeTab === 'integrity') {
+        fetchIntegrityLogs();
+      }
     }
-  }, [isAuthenticated, fetchJobs, fetchApplicants]);
+  }, [isAuthenticated, fetchJobs, fetchApplicants, activeTab]);
 
   const handleDownloadPDF = () => {
     const element = reportRef.current;
@@ -66,7 +84,6 @@ function AdminDashboard() {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Use html2pdf (loaded via CDN in index.html)
     window.html2pdf().from(element).set(opt).save();
   };
 
@@ -81,7 +98,6 @@ function AdminDashboard() {
     }
   };
 
-  // Redirect if not logged in
   if (!isAuthenticated) {
     navigate('/login');
     return null;
@@ -95,7 +111,7 @@ function AdminDashboard() {
       setShowAddJob(false);
     } catch (err) {
       const serverMsg = err.response?.data?.message || err.message;
-      alert(`${t('Failed to save job.', 'فشل حفظ الوظيفة.')}\n\nError Details:\n${serverMsg}\n\n(This usually means MongoDB Atlas Network Access is blocking Vercel. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas)`);
+      alert(`${t('Failed to save job.', 'فشل حفظ الوظيفة.')}\n\nError Details:\n${serverMsg}`);
     }
   };
 
@@ -145,7 +161,6 @@ function AdminDashboard() {
     );
   };
 
-  // ─── Analytics Stats ───────────────────────────────────
   const totalApplicants = applicants.length;
   const strongFit = applicants.filter(a => a.evaluation?.recommendation === 'Strong Fit').length;
   const potentialFit = applicants.filter(a => a.evaluation?.recommendation === 'Potential Fit').length;
@@ -163,7 +178,6 @@ function AdminDashboard() {
     return (now - d) / (1000 * 60 * 60 * 24) <= 7;
   }).length;
 
-  // ─── Filtered Applicants ──────────────────────────────
   const filteredApplicants = applicants.filter(app => {
     const matchSearch = !searchQuery ||
       app.candidate?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -176,15 +190,14 @@ function AdminDashboard() {
 
   const handleUpdateStatus = async (applicantId, newStatus) => {
     try {
-      const response = await axios.patch(`/api/applicants/${applicantId}/status`, { status: newStatus });
-      if (response.status === 200) {
-        // Update local state to avoid refresh
-        useAdminStore.getState().fetchApplicants();
+      await applicantService.updateStatus(applicantId, newStatus);
+      fetchApplicants();
+      if (selectedApplicant) {
         setSelectedApplicant(prev => prev ? { ...prev, status: newStatus } : null);
       }
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Failed to update status");
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert(isAr ? 'فشل تحديث الحالة' : 'Failed to update status');
     }
   };
 

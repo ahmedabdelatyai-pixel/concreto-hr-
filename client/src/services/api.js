@@ -44,6 +44,12 @@ export const applicantService = {
   getStats: () => api.get('/applicants/stats'),
 };
 
+export const integrityService = {
+  getAll: () => api.get('/integrity'),
+  getOne: (id) => api.get(`/integrity/${id}`),
+  delete: (id) => api.delete(`/integrity/${id}`),
+};
+
 export const jobService = {
   getAll: (query = {}) => api.get('/jobs', { params: query }),
   getOne: (id) => api.get(`/jobs/${id}`),
