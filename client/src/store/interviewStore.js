@@ -10,6 +10,9 @@ export const useInterviewStore = create(
         role: '',
         jobTitle: '',
         jobId: '',
+        applicantId: '',
+        accessSecret: '',
+        questionCount: 10,
         customQuestions: [],
         source: 'Website',
       },
@@ -39,7 +42,7 @@ export const useInterviewStore = create(
       setEvaluation: (evaluation) => set({ evaluation }),
 
       reset: () => set({
-        candidate: { name: '', email: '', role: '', jobTitle: '', jobId: '', customQuestions: [], source: 'Website' },
+        candidate: { name: '', email: '', role: '', jobTitle: '', jobId: '', applicantId: '', accessSecret: '', questionCount: 10, customQuestions: [], source: 'Website' },
         cvData: null,
         cvFile: null,
         generatedQuestions: [],

@@ -4,7 +4,8 @@ const jobSchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    index: true
+    index: true,
+    required: false // Optional
   },
   title_en: { type: String, required: true },
   title_ar: { type: String, required: true },
@@ -12,6 +13,7 @@ const jobSchema = new mongoose.Schema({
   description_en: { type: String },
   description_ar: { type: String },
   active: { type: Boolean, default: true },
+  questionCount: { type: Number, default: 10 }, // Total questions (Custom + AI)
   customQuestions: [{
     text: String,
     category: { type: String, enum: ['Technical', 'Behavioral', 'Attitude', 'Hybrid'], default: 'Technical' },

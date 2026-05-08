@@ -42,18 +42,23 @@ function LandingPage() {
         padding: '1.5rem 10%', position: 'sticky', top: 0, backgroundColor: 'rgba(5, 10, 20, 0.8)',
         backdropFilter: 'blur(12px)', zIndex: 1000, borderBottom: '1px solid rgba(255,255,255,0.05)'
       }}>
-        <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-primary)', letterSpacing: '-1px' }}>
+        <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#6366f1', letterSpacing: '-1px' }}>
           TalentFlow<span style={{ color: '#fff' }}>AI</span>
         </div>
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <button onClick={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button 
+            onClick={() => navigate('/admin/login')} 
+            className="btn btn-outline" 
+            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', borderColor: 'rgba(99, 102, 241, 0.4)', color: '#6366f1' }}
+          >
+            {isArabic ? 'لوحة الإدارة' : 'Admin'}
+          </button>
+          <button 
+            className="btn btn-outline" 
+            onClick={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+          >
             {isArabic ? 'English' : 'العربية'}
-          </button>
-          <button onClick={() => navigate('/login')} className="btn btn-outline" style={{ border: 'none', color: 'rgba(255,255,255,0.7)' }}>
-            {isArabic ? 'لوحة التحكم' : 'Admin'}
-          </button>
-          <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '0.6rem 1.5rem', fontWeight: '600' }}>
-            {isArabic ? 'ابدأ الآن' : 'Get Started'}
           </button>
         </div>
       </nav>
@@ -89,7 +94,7 @@ function LandingPage() {
             <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem', boxShadow: '0 10px 40px rgba(252, 163, 17, 0.3)' }}>
               {isArabic ? 'قدم الآن كمرشح' : 'Apply as Candidate'}
             </button>
-            <button onClick={() => navigate('/login')} className="btn btn-outline" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
+            <button onClick={() => navigate('/admin/login')} className="btn btn-outline" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
               {isArabic ? 'عرض لوحة الشركات' : 'For Employers'}
             </button>
           </div>
@@ -97,7 +102,7 @@ function LandingPage() {
       </header>
 
       {/* Features Section */}
-      <section style={{ padding: '8rem 10%', background: '#080e1a' }}>
+      <section id="features" style={{ padding: '8rem 10%', background: '#080e1a' }}>
         <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1rem' }}>
             {isArabic ? 'لماذا تختار TalentFlow؟' : 'Why Choose TalentFlow AI?'}
@@ -152,7 +157,7 @@ function LandingPage() {
       </section>
 
       {/* Stats Section */}
-      <section style={{ padding: '6rem 10%', display: 'flex', justifyContent: 'space-around', backgroundColor: '#050a14', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <section id="pricing" style={{ padding: '6rem 10%', display: 'flex', justifyContent: 'space-around', backgroundColor: '#050a14', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         {[
           { label: isArabic ? 'توفير في الوقت' : 'Time Saved', val: '70%' },
           { label: isArabic ? 'دقة التقييم' : 'Accuracy', val: '95%' },
@@ -166,8 +171,8 @@ function LandingPage() {
         ))}
       </section>
 
-      {/* CTA Footer */}
-      <footer style={{ 
+      {/* CTA Section */}
+      <section style={{ 
         padding: '6rem 10%', textAlign: 'center', background: 'linear-gradient(180deg, #080e1a 0%, #050a14 100%)',
         borderTop: '1px solid rgba(255,255,255,0.05)'
       }}>
@@ -177,10 +182,7 @@ function LandingPage() {
         <button onClick={() => navigate('/profile')} className="btn btn-primary" style={{ padding: '1.5rem 4rem', fontSize: '1.3rem', fontWeight: '700' }}>
           {isArabic ? 'ابدأ تجربة المقابلة الآن' : 'Start AI Interview Now'}
         </button>
-        <div style={{ marginTop: '4rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.9rem' }}>
-          © 2026 TalentFlow AI. All rights reserved. Powered by Intelligence.
-        </div>
-      </footer>
+      </section>
       
       {/* Server Status Indicator */}
       <div style={{

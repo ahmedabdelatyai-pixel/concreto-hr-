@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
 import { useAdminStore } from '../store/adminStore';
 import { evaluateInterview } from '../services/aiApi';
@@ -32,14 +32,17 @@ function EvaluationResult() {
       }
 
       // Save applicant results to backend (once)
-      if (!savedRef.current && evalResult && candidate._id) {
+      console.log("Checking if ready to save result. Candidate ID:", candidate.applicantId);
+      if (!savedRef.current && evalResult && candidate.applicantId) {
         savedRef.current = true;
+        console.log("Submitting final evaluation results for ID:", candidate.applicantId);
         
         try {
           const mappedData = {
             answers,
             cvData: useInterviewStore.getState().cvData,
             cvFile: useInterviewStore.getState().cvFile,
+            accessSecret: candidate.accessSecret, // SECURITY: Send secret back for validation
             evaluation: {
               ...evalResult,
               scores: {
@@ -50,11 +53,13 @@ function EvaluationResult() {
             }
           };
           
-          await axios.patch(`${import.meta.env.VITE_API_URL || '/api'}/public/applicants/${candidate._id}/submit`, mappedData);
-          console.log('Application submitted successfully');
+          const submitRes = await api.patch(`/public/applicants/${candidate.applicantId}/submit`, mappedData);
+          console.log('Application submitted successfully:', submitRes.data);
         } catch (error) {
-          console.error("Failed to submit application:", error);
+          console.error("Failed to submit application:", error.response?.data || error.message);
         }
+      } else if (!candidate.applicantId) {
+        console.error("CRITICAL: Candidate ID is missing. Cannot save results.");
       }
 
       setLoading(false);

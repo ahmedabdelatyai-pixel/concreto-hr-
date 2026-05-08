@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
 import { generateQuestions } from '../services/aiApi';
 
@@ -143,7 +143,7 @@ function InterviewPhase() {
     try {
       const candidate = useInterviewStore.getState().candidate;
       if (candidate && candidate._id) {
-        await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/public/integrity`, {
+        await api.post('/public/integrity', {
           applicantId: candidate._id,
           incidentType: type,
           description,
@@ -178,10 +178,12 @@ function InterviewPhase() {
     return () => clearInterval(interval);
   }, [timerActive, timeLeft, showWarning]);
 
-  // Auto-scroll
+  // Auto-scroll to bottom whenever messages or current index changes
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping, answer]);
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, currentStep]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
@@ -204,106 +206,91 @@ function InterviewPhase() {
     setMessages([{ id: Date.now(), role: 'ai', text: greet, typed: false }]);
   }, [candidate.name, candidate.jobTitle, candidate.customQuestions, isArabic]);
 
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
+    if (hasInitialized.current) return;
+    
     const init = async () => {
-      // Prepare custom questions from the job (if any)
-      const customQs = candidate.customQuestions ? 
-        candidate.customQuestions.map(q => typeof q === 'string' ? q : q.text) : [];
-      
+      // 1. Check if we already have questions generated (from CvUpload)
       if (generatedQuestions && generatedQuestions.length > 0) {
-        // Combine custom questions + generated questions
-        const allQuestions = [...customQs, ...generatedQuestions];
-        startInterview(allQuestions);
-      } else if (candidate.jobTitle) {
-        const qs = await generateQuestions(candidate.jobTitle, cvData, i18n.language, customQs);
-        if (qs && qs.length > 0) {
-          // Combine custom + generated
-          const allQuestions = [...customQs, ...qs];
-          setQuestions(allQuestions);
-          startInterview(allQuestions);
-        } else if (customQs.length > 0) {
-          // If only custom questions exist, use them
-          setQuestions(customQs);
-          startInterview(customQs);
-        } else {
-          // Fallback - role-specific basic questions
-          const role = candidate.jobTitle || 'موظف';
-          const fallbackQs = isArabic
-            ? [
-                `صف لنا يومك النموذجي في وظيفة ${role} - من لحظة وصولك لغاية انتهاء الوردية.`,
-                `ما هي الأدوات أو المعدات التي تعمل عليها يومياً في هذا المجال؟`,
-                `وصف لنا أصعب موقف تقني واجهته في عملك الحالي أو السابق وكيف تعاملت معه.`,
-                `إذا اكتشفت خطأً في عمل زميلك يمكن أن يؤثر على جودة المنتج أو سلامة الموقع، ماذا ستفعل؟`,
-                `كيف تتصرف لو طُلب منك إنجاز عمل بجودة عالية في وقت أقل من المعتاد؟`,
-                `ما هي إجراءات السلامة التي تلتزم بها أولاً قبل بدء أي مهمة في موقع العمل؟`,
-                `هل سبق وأن اختلفت مع مشرفك على قرار تقني؟ كيف تصرفت؟`,
-                `كيف تتعامل مع ضغط العمل الشديد وتعدد المهام في نفس الوقت؟`,
-                `ما الذي تفتقده في مكان عملك الحالي أو السابق وتأمل أن تجده هنا؟`,
-                `لو أعطيناك فرصة لتطوير أي شيء في طريقة عمل قسمك، ما هو أول شيء ستغيره؟`
-              ]
-            : [
-                `Walk us through a typical day as a ${role} — from when you arrive until end of shift.`,
-                `What tools, equipment, or software do you use on a daily basis in this role?`,
-                `Describe the most technically challenging situation you faced in your current or previous job and how you resolved it.`,
-                `If you discovered an error in a colleague's work that could affect product quality or site safety, what would you do?`,
-                `How do you handle a situation where you're asked to deliver high-quality work in less time than normal?`,
-                `What are the first safety checks you perform before starting any task on site or at the plant?`,
-                `Have you ever disagreed with your supervisor on a technical decision? How did you handle it?`,
-                `How do you manage multiple urgent tasks at the same time without compromising quality?`,
-                `What is missing from your current workplace that you hope to find here at TalentFlow?`,
-                `If you were given the chance to improve one process in your department, what would you change and why?`
-              ];
-          setQuestions(fallbackQs);
-          startInterview(fallbackQs);
+        console.log("Using pre-generated questions from store:", generatedQuestions.length);
+        startInterview(generatedQuestions);
+        hasInitialized.current = true;
+        return;
+      }
+
+      // 2. If no questions yet, check if we have enough info to generate them
+      if (candidate.jobTitle) {
+        console.log("No pre-generated questions found, generating now...");
+        const targetCount = Number(candidate.questionCount || 10);
+        const customBank = candidate.customQuestions || [];
+        
+        try {
+          const fallbackQs = await generateQuestions(
+            candidate.jobTitle, 
+            cvData, 
+            i18n.language, 
+            customBank, 
+            targetCount
+          );
+
+          if (fallbackQs && fallbackQs.length > 0) {
+            setQuestions(fallbackQs);
+            startInterview(fallbackQs);
+            hasInitialized.current = true;
+          } else {
+            // Ultimate fallback (Static Questions)
+            const generic = isArabic 
+              ? [
+                  { question: "أخبرنا عن نفسك وخبراتك.", category: "Technical", weight: 1 },
+                  { question: "لماذا تريد العمل في شركتنا؟", category: "Behavioral", weight: 1 },
+                  { question: "ما هي أقوى مهاراتك التقنية؟", category: "Technical", weight: 1 }
+                ]
+              : [
+                  { question: "Tell us about yourself and your experience.", category: "Technical", weight: 1 },
+                  { question: "Why do you want to work with us?", category: "Behavioral", weight: 1 },
+                  { question: "What are your strongest technical skills?", category: "Technical", weight: 1 }
+                ];
+            setQuestions(generic);
+            startInterview(generic);
+            hasInitialized.current = true;
+          }
+        } catch (error) {
+          console.error("Initialization failed:", error);
         }
-      } else {
-        navigate('/');
       }
     };
     init();
+  }, [candidate, generatedQuestions, cvData, i18n.language, isArabic, startInterview, setQuestions]);
 
-    // Init Speech Recognition
+  // Speech Recognition Setup
+  useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      // Set language based on app language
       recognitionRef.current.lang = i18n.language === 'ar' ? 'ar-SA' : 'en-US';
 
       recognitionRef.current.onresult = (event) => {
-        let interimTranscript = '';
         let finalTranscript = '';
-
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
+          if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
         }
-        
         if (finalTranscript) {
           setAnswer(prev => prev + (prev.endsWith(' ') ? '' : ' ') + finalTranscript);
         }
       };
 
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error', event.error);
-        setIsRecording(false);
-      };
-      
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-      };
+      recognitionRef.current.onerror = (e) => { console.error('Speech error', e.error); setIsRecording(false); };
+      recognitionRef.current.onend = () => setIsRecording(false);
     }
     
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
     };
-  }, []);
+  }, [i18n.language]);
 
   const toggleRecording = useCallback(() => {
     if (!recognitionRef.current) {
@@ -332,7 +319,9 @@ function InterviewPhase() {
         setIsInitializing(false);
         setIsTyping(true);
         setTimeout(() => {
-          setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: questions[0], typed: false }]);
+          const firstQ = questions[0];
+          const firstQText = typeof firstQ === 'string' ? firstQ : (firstQ.question || firstQ.text);
+          setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: firstQText, typed: false }]);
           setIsTyping(false);
         }, 900);
       }, 1200);

@@ -4,7 +4,7 @@ import { useAdminStore } from '../store/adminStore';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-import api, { applicantService, jobService, integrityService } from '../services/api';
+import api from '../services/api';
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -12,7 +12,17 @@ function AdminDashboard() {
   const isAr = i18n.language === 'ar';
   const t = (en, ar) => isAr ? ar : en;
   const reportRef = useRef(null);
+  
+  // Multi-tenant Auth (for real users)
   const { isAuthenticated, logout, user, company } = useAuth();
+  
+  // Demo Mode Auth (for testing)
+  const isAdminLoggedIn = useAdminStore(state => state.isAdminLoggedIn);
+  const adminLogout = useAdminStore(state => state.adminLogout);
+  
+  // Check if user is authenticated either way
+  const isUserLoggedIn = isAuthenticated || isAdminLoggedIn;
+  
   const jobs = useAdminStore(state => state.jobs);
   const addJob = useAdminStore(state => state.addJob);
   const deleteJob = useAdminStore(state => state.deleteJob);
@@ -20,16 +30,17 @@ function AdminDashboard() {
   const fetchJobs = useAdminStore(state => state.fetchJobs);
   const fetchApplicants = useAdminStore(state => state.fetchApplicants);
   const clearApplicants = useAdminStore(state => state.clearApplicants);
+  const updateJob = useAdminStore(state => state.updateJob);
 
   const [activeTab, setActiveTab] = useState('analytics');
   const [showAddJob, setShowAddJob] = useState(false);
+  const [editingJob, setEditingJob] = useState(null);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
-  const [integrityLogs, setIntegrityLogs] = useState([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
   const [newJob, setNewJob] = useState({ 
     title_en: '', 
     title_ar: '', 
     department: '',
+    questionCount: 10,
     customQuestions: [] 
   });
   const [questionInput, setQuestionInput] = useState({ text: '', category: 'Technical' });
@@ -38,39 +49,25 @@ function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterJob, setFilterJob] = useState('all');
 
-  const fetchIntegrityLogs = async () => {
-    try {
-      setLoadingLogs(true);
-      const res = await integrityService.getAll();
-      setIntegrityLogs(res.data.logs || []);
-    } catch (err) {
-      console.error("Failed to fetch integrity logs:", err);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
   useEffect(() => {
-    const checkStatus = async () => {
+    const checkServer = async () => {
       try {
+        // Use the centralized api service for health check
         await api.get('/health');
         setServerStatus('online');
-      } catch (err) {
+      } catch (e) {
         setServerStatus('offline');
       }
     };
-    checkStatus();
+    checkServer();
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isUserLoggedIn) {
       fetchJobs();
       fetchApplicants();
-      if (activeTab === 'integrity') {
-        fetchIntegrityLogs();
-      }
     }
-  }, [isAuthenticated, fetchJobs, fetchApplicants, activeTab]);
+  }, [isUserLoggedIn, fetchJobs, fetchApplicants]);
 
   const handleDownloadPDF = () => {
     const element = reportRef.current;
@@ -84,6 +81,7 @@ function AdminDashboard() {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
+    // Use html2pdf (loaded via CDN in index.html)
     window.html2pdf().from(element).set(opt).save();
   };
 
@@ -98,21 +96,61 @@ function AdminDashboard() {
     }
   };
 
-  if (!isAuthenticated) {
-    navigate('/login');
+  // Redirect if not logged in
+  if (!isUserLoggedIn) {
+    navigate('/admin/login');
     return null;
   }
+
+  const handleLogout = () => {
+    if (isAdminLoggedIn) {
+      adminLogout();
+    } else {
+      logout();
+    }
+    navigate('/');
+  };
 
   const handleAddJob = async (e) => {
     e.preventDefault();
     try {
-      await addJob(newJob);
-      setNewJob({ title_en: '', title_ar: '', department: '', customQuestions: [] });
+      // Auto-add any pending question text in the input
+      let jobToSave = { 
+        ...newJob,
+        questionCount: parseInt(newJob.questionCount) || 10
+      };
+      if (questionInput.text.trim()) {
+        jobToSave.customQuestions = [...jobToSave.customQuestions, { ...questionInput }];
+      }
+
+      if (editingJob) {
+        await updateJob(editingJob._id, jobToSave);
+      } else {
+        await addJob(jobToSave);
+      }
+      
+      setNewJob({ title_en: '', title_ar: '', department: '', questionCount: 10, customQuestions: [] });
+      setQuestionInput({ text: '', category: 'Technical' });
       setShowAddJob(false);
+      setEditingJob(null);
     } catch (err) {
       const serverMsg = err.response?.data?.message || err.message;
       alert(`${t('Failed to save job.', 'فشل حفظ الوظيفة.')}\n\nError Details:\n${serverMsg}`);
     }
+  };
+
+  const handleEditJob = (job) => {
+    setEditingJob(job);
+    setNewJob({
+      title_en: job.title_en,
+      title_ar: job.title_ar,
+      department: job.department,
+      questionCount: job.questionCount || 10,
+      customQuestions: [...(job.customQuestions || [])]
+    });
+    setShowAddJob(true);
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const addQuestionToNewJob = () => {
@@ -129,11 +167,6 @@ function AdminDashboard() {
       ...newJob,
       customQuestions: newJob.customQuestions.filter((_, i) => i !== idx)
     });
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
   };
 
   const getJobTitle = (jobId) => {
@@ -161,24 +194,29 @@ function AdminDashboard() {
     );
   };
 
-  const totalApplicants = applicants.length;
-  const strongFit = applicants.filter(a => a.evaluation?.recommendation === 'Strong Fit').length;
-  const potentialFit = applicants.filter(a => a.evaluation?.recommendation === 'Potential Fit').length;
-  const notFit = applicants.filter(a => ['Not Fit', 'Invalid Answers'].includes(a.evaluation?.recommendation)).length;
+  // ─── Analytics Calculations ──────────────────────────
+  const safeApplicants = Array.isArray(applicants) ? applicants : [];
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+
+  const totalApplicants = safeApplicants.length;
+  const strongFit = safeApplicants.filter(a => a.evaluation?.recommendation === 'Strong Fit').length;
+  const potentialFit = safeApplicants.filter(a => a.evaluation?.recommendation === 'Potential Fit').length;
+  const notFit = safeApplicants.filter(a => ['Not Fit', 'Invalid Answers'].includes(a.evaluation?.recommendation)).length;
   const avgScore = totalApplicants > 0
-    ? Math.round(applicants.reduce((sum, a) => sum + (a.evaluation?.total_score || 0), 0) / totalApplicants)
+    ? Math.round(safeApplicants.reduce((sum, a) => sum + (a.evaluation?.total_score || 0), 0) / totalApplicants)
     : 0;
-  const topJob = jobs.reduce((top, job) => {
-    const count = applicants.filter(a => a.jobId === job._id).length;
+  const topJob = safeJobs.reduce((top, job) => {
+    const count = safeApplicants.filter(a => a.jobId === job._id).length;
     return count > (top.count || 0) ? { title: isAr ? job.title_ar : job.title_en, count } : top;
   }, {});
-  const thisWeek = applicants.filter(a => {
+  const thisWeek = safeApplicants.filter(a => {
     const d = new Date(a.appliedAt);
     const now = new Date();
     return (now - d) / (1000 * 60 * 60 * 24) <= 7;
   }).length;
 
-  const filteredApplicants = applicants.filter(app => {
+  // ─── Filtered Applicants ──────────────────────────────
+  const filteredApplicants = safeApplicants.filter(app => {
     const matchSearch = !searchQuery ||
       app.candidate?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.candidate?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -190,14 +228,16 @@ function AdminDashboard() {
 
   const handleUpdateStatus = async (applicantId, newStatus) => {
     try {
-      await applicantService.updateStatus(applicantId, newStatus);
-      fetchApplicants();
-      if (selectedApplicant) {
+      // Use centralized api service
+      const response = await api.patch(`/applicants/${applicantId}/status`, { status: newStatus });
+      if (response.status === 200) {
+        // Update local state
+        fetchApplicants();
         setSelectedApplicant(prev => prev ? { ...prev, status: newStatus } : null);
       }
-    } catch (err) {
-      console.error("Error updating status:", err);
-      alert(isAr ? 'فشل تحديث الحالة' : 'Failed to update status');
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Failed to update status");
     }
   };
 
@@ -310,13 +350,13 @@ function AdminDashboard() {
               {/* Applicants per Job */}
               <div className="card">
                 <h3 style={{ marginBottom: '1.5rem' }}>{t('Applicants per Job', 'المتقدمون لكل وظيفة')}</h3>
-                {jobs.length === 0 ? (
+                {safeJobs.length === 0 ? (
                   <p className="text-muted">{t('No jobs yet.', 'لا توجد وظائف بعد.')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {jobs.map((job) => {
-                      const count = applicants.filter(a => a.jobId === job._id).length;
-                      const maxCount = Math.max(...jobs.map(j => applicants.filter(a => a.jobId === j._id).length), 1);
+                    {safeJobs.map((job) => {
+                      const count = safeApplicants.filter(a => a.jobId === job._id).length;
+                      const maxCount = Math.max(...safeJobs.map(j => safeApplicants.filter(a => a.jobId === j._id).length), 1);
                       return (
                         <div key={job._id}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
@@ -344,7 +384,7 @@ function AdminDashboard() {
                       { label: t('40–59 (Average)', '٤٠-٥٩ (متوسط)'), range: [40, 59], color: '#f97316' },
                       { label: t('0–39 (Poor)', '٠-٣٩ (ضعيف)'), range: [0, 39], color: '#ef4444' },
                     ].map((tier, i) => {
-                      const count = applicants.filter(a => {
+                      const count = safeApplicants.filter(a => {
                         const s = a.evaluation?.total_score || 0;
                         return s >= tier.range[0] && s <= tier.range[1];
                       }).length;
@@ -373,7 +413,7 @@ function AdminDashboard() {
                     { label: t('Acceptance Rate', 'نسبة القبول'), value: totalApplicants > 0 ? `${Math.round(strongFit / totalApplicants * 100)}%` : '0%', icon: '📈' },
                     { label: t('Rejection Rate', 'نسبة الرفض'), value: totalApplicants > 0 ? `${Math.round(notFit / totalApplicants * 100)}%` : '0%', icon: '📉' },
                     { label: t('Under Review', 'قيد المراجعة'), value: potentialFit, icon: '🔍' },
-                    { label: t('Total Open Positions', 'إجمالي الوظائف المفتوحة'), value: jobs.length, icon: '💼' },
+                    { label: t('Total Open Positions', 'إجمالي الوظائف المفتوحة'), value: safeJobs.length, icon: '💼' },
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0', borderBottom: '1px solid var(--color-border)' }}>
                       <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{item.icon} {item.label}</span>
@@ -395,16 +435,22 @@ function AdminDashboard() {
                 <button className="btn btn-outline" onClick={() => { if(confirm(t('Clear all applicants?', 'هل تريد حذف جميع المتقدمين؟'))) { clearApplicants(); } }} style={{ padding: '0.5rem 1rem', borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>
                   🗑 {t('Clear All Applicants', 'حذف جميع المتقدمين')}
                 </button>
-                <button className="btn btn-primary" onClick={() => setShowAddJob(!showAddJob)} style={{ padding: '0.5rem 1rem' }}>
+                <button className="btn btn-primary" onClick={() => { 
+                  if(showAddJob && editingJob) {
+                    setEditingJob(null);
+                    setNewJob({ title_en: '', title_ar: '', department: '', questionCount: 10, customQuestions: [] });
+                  }
+                  setShowAddJob(!showAddJob);
+                }} style={{ padding: '0.5rem 1rem' }}>
                   {showAddJob ? t('✕ Cancel', '✕ إلغاء') : t('+ Add Job', '+ إضافة وظيفة')}
                 </button>
               </div>
             </div>
 
-            {/* Add Job Form */}
+            {/* Add/Edit Job Form */}
             {showAddJob && (
               <div className="card fade-in" style={{ marginBottom: '1.5rem', border: '1px solid var(--color-primary)' }}>
-                <h4 style={{ marginBottom: '1rem' }}>{t('New Job Position', 'وظيفة جديدة')}</h4>
+                <h4 style={{ marginBottom: '1rem' }}>{editingJob ? t('Edit Job Position', 'تعديل وظيفة') : t('New Job Position', 'وظيفة جديدة')}</h4>
                 <form onSubmit={handleAddJob}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
@@ -421,6 +467,11 @@ function AdminDashboard() {
                       <label className="form-label">{t('Department', 'القسم')}</label>
                       <input type="text" className="form-control" required
                         value={newJob.department} onChange={(e) => setNewJob({ ...newJob, department: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('Total Questions', 'إجمالي عدد الأسئلة')}</label>
+                      <input type="number" className="form-control" min="1" max="30"
+                        value={newJob.questionCount || 10} onChange={(e) => setNewJob({ ...newJob, questionCount: parseInt(e.target.value) })} />
                     </div>
                   </div>
 
@@ -457,7 +508,7 @@ function AdminDashboard() {
                     </div>
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.6rem 2rem' }}>
-                    {t('Save Job', 'حفظ الوظيفة')}
+                    {editingJob ? t('Update Job', 'تحديث الوظيفة') : t('Save Job', 'حفظ الوظيفة')}
                   </button>
                 </form>
               </div>
@@ -465,8 +516,8 @@ function AdminDashboard() {
 
             {/* Jobs List */}
             <div style={{ display: 'grid', gap: '1rem' }}>
-              {jobs.map(job => {
-                const jobApplicants = applicants.filter(a => a.jobId === job._id);
+              {safeJobs.map(job => {
+                const jobApplicants = safeApplicants.filter(a => a.jobId === job._id);
                 return (
                   <div key={job._id} style={{ marginBottom: '1.5rem' }}>
                     <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', marginBottom: '0.5rem' }}>
@@ -477,7 +528,11 @@ function AdminDashboard() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{job.customQuestions?.length || 0}</div>
-                          <div className="text-muted" style={{ fontSize: '0.75rem' }}>{t('Questions', 'أسئلة')}</div>
+                          <div className="text-muted" style={{ fontSize: '0.75rem' }}>{t('Custom', 'مخصص')}</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fca311' }}>{job.questionCount || 10}</div>
+                          <div className="text-muted" style={{ fontSize: '0.75rem' }}>{t('Target', 'المستهدف')}</div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{jobApplicants.length}</div>
@@ -487,39 +542,57 @@ function AdminDashboard() {
                           padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600',
                           backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
                         }}>{t('Active', 'نشطة')}</span>
+                        <button className="btn btn-outline" onClick={() => handleEditJob(job)}
+                          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
+                          {t('Edit', 'تعديل')}
+                        </button>
                         <button className="btn btn-outline" onClick={() => deleteJob(job._id)}
                           style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
                           {t('Delete', 'حذف')}
                         </button>
                       </div>
                     </div>
-                    {/* Share Section */}
-                    <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-                      <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>🔗 {t('Recruitment Links (Source Tracking)', 'روابط التوظيف (تتبع المصدر)')}</div>
-                      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                        {[
-                          { name: 'LinkedIn', src: 'linkedin' },
-                          { name: 'Twitter/X', src: 'twitter' },
-                          { name: 'Facebook', src: 'facebook' },
-                          { name: 'General', src: 'direct' }
-                        ].map(source => {
-                          const link = `${window.location.origin}/?src=${source.src}`;
-                          return (
-                            <div key={source.src} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--color-bg)', padding: '0.4rem 0.8rem', borderRadius: '4px' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{source.name}</span>
-                              <button 
-                                className="btn btn-outline" 
-                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
-                                onClick={() => {
-                                  navigator.clipboard.writeText(link);
-                                  alert(`Copied link for ${source.name}`);
-                                }}
-                              >{t('Copy', 'نسخ')}</button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                        {/* Share Section */}
+                        <div style={{ padding: '1.2rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--color-border)', marginTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <div className="text-muted" style={{ fontSize: '0.85rem', fontWeight: '600' }}>🔗 {t('Direct Application Links', 'روابط التوظيف المباشرة')}</div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-primary)', backgroundColor: 'rgba(252, 163, 17, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                              {t('Tracking Enabled', 'التتبع مفعل')}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                            {[
+                              { name: 'LinkedIn', src: 'linkedin', icon: '🔵' },
+                              { name: 'WhatsApp', src: 'whatsapp', icon: '🟢' },
+                              { name: 'Facebook', src: 'facebook', icon: '💠' },
+                              { name: 'Direct', src: 'direct', icon: '🔗' }
+                            ].map(source => {
+                              // Generate the direct apply link with jobId and source
+                              const applyLink = `${window.location.origin}/apply?jobId=${job._id}&src=${source.src}`;
+                              return (
+                                <div key={source.src} style={{ 
+                                  display: 'flex', flexDirection: 'column', gap: '0.5rem', 
+                                  backgroundColor: 'var(--color-bg)', padding: '0.75rem', 
+                                  borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)'
+                                }}>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    {source.icon} {source.name}
+                                  </div>
+                                  <button 
+                                    className="btn btn-outline" 
+                                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', width: '100%' }}
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(applyLink);
+                                      alert(isAr ? `تم نسخ رابط ${source.name} بنجاح!` : `Copied ${source.name} link!`);
+                                    }}
+                                  >
+                                    {t('Copy Link', 'نسخ الرابط')}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                   </div>
                 );
               })}
@@ -572,7 +645,7 @@ function AdminDashboard() {
                 style={{ flex: '1', minWidth: '160px' }}
               >
                 <option value="all">{t('All Jobs', 'جميع الوظائف')}</option>
-                {jobs.map(j => <option key={j._id} value={j._id}>{isAr ? j.title_ar : j.title_en}</option>)}
+                {safeJobs.map(j => <option key={j._id} value={j._id}>{isAr ? j.title_ar : j.title_en}</option>)}
               </select>
               {(searchQuery || filterStatus !== 'all' || filterJob !== 'all') && (
                 <button className="btn btn-outline" onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterJob('all'); }}

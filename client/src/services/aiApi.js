@@ -114,9 +114,22 @@ const getBlueprintForRole = (jobTitle, lang) => {
   return blueprints.default.replace('{jobTitle}', jobTitle);
 };
 
-export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = []) => {
+export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) return null;
+
+  // Calculate how many AI questions we need to fill the gap
+  const customCount = customBank.length;
+  const needed = Math.max(0, targetCount - customCount);
+
+  // If we already have enough custom questions, just return them formatted
+  if (needed === 0) {
+    return customBank.slice(0, targetCount).map(q => ({
+      question: typeof q === 'string' ? q : q.text,
+      category: q.category || 'Technical',
+      weight: q.weight || 1
+    }));
+  }
 
   const isArabic = language === 'ar';
   const langText = isArabic ? 'Arabic (العربية)' : 'English';
@@ -125,71 +138,59 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
     ? `\nThe candidate's CV summary: "${cvData.summary}". Their declared skills: ${cvData.skills?.join(', ')}.`
     : '';
 
-  const customContext = customBank.length > 0
-    ? `\nSTRICT REQUIREMENT: You MUST include these specific questions from the company in the interview (translated to ${langText} if necessary):\n${customBank.map((q, idx) => {
-        const qText = typeof q === 'string' ? q : q.text || '';
-        const qCat = typeof q === 'string' ? 'Technical' : (q.category || 'Technical');
-        return `- [${qCat}] ${qText}`;
-      }).join('\n')}`
-    : '';
-
   const prompt = isArabic ? `
-أنت محاور تقني محترف في منصة TalentFlow (منصة توظيف مدعومة بالذكاء الاصطناعي).
-مهمتك: توليد 10 أسئلة مقابلة واقعية وحقيقية للوظيفة: "${jobTitle}" مع تصنيف كل سؤال ووزنه.
+أنت محاور تقني محترف في منصة TalentFlow.
+مهمتك: توليد ${needed} أسئلة مقابلة إضافية للوظيفة: "${jobTitle}" لتكملة قائمة الأسئلة المخصصة.
 
 قواعد صارمة:
 1. الأسئلة يجب أن تكون باللغة العربية فقط.
-2. لا تستخدم الأسئلة التقليدية المملة.
-3. كل سؤال يجب أن يكون محدداً لوظيفة "${jobTitle}".
-${customContext}
-4. إذا وجد بنك أسئلة مخصص أعلاه، أدرج أسئلته ضمن الـ 10 أسئلة المطلوبة وقم بصياغتها بشكل احترافي.
-5. الباقي أكمله بناءً على التوزيع التالي مع التصنيف والوزن:
+2. لا تكرر أي فكرة موجودة في الـ CV أو الأسئلة العامة.
+3. التوزيع المطلوب للـ ${needed} أسئلة:
 ${blueprint}
 ${cvContext}
 
-أخرج JSON array فقط يحتوي على 10 objects بهذا الشكل:
-[{"question": "السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]
-مثال على سؤال جيد: {"question": "وصف لنا موقفاً واجهت فيه مشكلة تقنية طارئة أثناء العمل - كيف تعاملت معها وما النتيجة؟", "category": "Behavioral", "weight": 1.2}
-مثال على سؤال ممنوع: {"question": "ما هي نقاط قوتك؟", "category": "Attitude", "weight": 1.0}` 
+أخرج JSON array فقط يحتوي على بالضبط ${needed} objects بهذا الشكل:
+[{"question": "السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]` 
   : `
-You are a professional technical interviewer on TalentFlow AI recruitment platform.
-Your task: Generate exactly 10 realistic, specific interview questions for the role: "${jobTitle}" with category classification and weight for each.
+You are a professional technical interviewer on TalentFlow.
+Your task: Generate exactly ${needed} additional interview questions for the role: "${jobTitle}" to complete the interview set.
 
 Strict Rules:
 1. Questions MUST be in English only.
-2. NEVER use cliché questions.
-3. Every question MUST be specific to the daily reality of a "${jobTitle}".
-${customContext}
-4. If a custom question bank is provided above, include those questions in the set and polish them professionally.
-5. Fill the rest based on the following distribution with category and weight:
+2. Distribution for these ${needed} questions:
 ${blueprint}
 ${cvContext}
 
-Return ONLY a JSON array of exactly 10 objects in this format:
-[{"question": "Question here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]
-Example of a GOOD question: {"question": "A critical system failure occurs during peak hours and your team is split across two active projects. Walk me through your exact decision-making process and first 30 minutes of action.", "category": "Behavioral", "weight": 1.2}
-Example of a BANNED question: {"question": "What are your strengths?", "category": "Attitude", "weight": 1.0}`;
+Return ONLY a JSON array of exactly ${needed} objects in this format:
+[{"question": "Question here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]`;
 
   try {
-    const result = await callGemini(apiKey, prompt, true, 0.85);
-    if (Array.isArray(result) && result.length >= 10) {
-      // Ensure each question has category and weight
-      return result.slice(0, 10).map(q => ({
-        question: typeof q === 'string' ? q : q.question,
-        category: q.category || 'Technical',
-        weight: q.weight || 1
-      }));
+    const aiResult = await callGemini(apiKey, prompt, true, 0.85);
+    let aiQuestions = [];
+    
+    if (Array.isArray(aiResult)) {
+      aiQuestions = aiResult;
+    } else {
+      aiQuestions = Object.values(aiResult).find(v => Array.isArray(v)) || [];
     }
-    // If Gemini returns an object with a key containing the array
-    const firstArray = Object.values(result).find(v => Array.isArray(v));
-    if (firstArray && firstArray.length >= 10) {
-      return firstArray.slice(0, 10).map(q => ({
-        question: typeof q === 'string' ? q : q.question,
-        category: q.category || 'Technical',
-        weight: q.weight || 1
-      }));
-    }
-    return null;
+
+    // Format Custom Questions
+    const formattedCustom = customBank.map(q => ({
+      question: typeof q === 'string' ? q : q.text,
+      category: q.category || 'Technical',
+      weight: q.weight || 1
+    }));
+
+    // Format AI Questions
+    const formattedAi = aiQuestions.map(q => ({
+      question: typeof q === 'string' ? q : q.question,
+      category: q.category || 'Technical',
+      weight: q.weight || 1
+    }));
+
+    // Merge: Custom first, then AI
+    return [...formattedCustom, ...formattedAi].slice(0, targetCount);
+    
   } catch (error) {
     console.error('Gemini Question Generation Error:', error);
     return null;

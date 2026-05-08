@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Cairo:wght@300;400;600;700&display=swap');
 
 :root {
-  /* Premium Industrial Palette - SaaS Optimized */
-  --color-primary: #fca311;
-  --color-primary-dark: #e8950f;
-  --color-primary-glow: rgba(252, 163, 17, 0.15);
-  --color-secondary: #e76f51;
-  --color-bg: #050a14; /* Deeper dark */
+  /* Premium Professional Palette - Indigo SaaS Theme */
+  --color-primary: #6366f1; /* Indigo */
+  --color-primary-dark: #4f46e5;
+  --color-primary-glow: rgba(99, 102, 241, 0.15);
+  --color-secondary: #3b82f6; /* Blue */
+  --color-bg: #050a14;
   --color-bg-card: #0a1120;
   --color-bg-elevated: #111a2e;
   --color-text: #f9fafb;
@@ -26,7 +26,7 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
   --shadow-md: 0 10px 30px -10px rgba(0,0,0,0.5);
   --shadow-lg: 0 20px 50px -12px rgba(0,0,0,0.6);
-  --shadow-glow: 0 0 40px rgba(252, 163, 17, 0.12);
+  --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.12);
 }
 
 [dir="rtl"] {

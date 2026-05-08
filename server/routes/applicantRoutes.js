@@ -1,21 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const Applicant = require('../models/Applicant');
-const { authenticate, companyOnly, authorize } = require('../middleware/auth');
-const { uploadLimiter } = require('../middleware/rateLimiter');
-const { validateApplicant } = require('../middleware/validation');
+const { authenticate, companyOnly } = require('../middleware/auth');
 
-// Apply middleware to all routes
-router.use(authenticate, companyOnly);
-
-// GET all applicants for company
-router.get('/', async (req, res) => {
+// GET all applicants (For current company)
+router.get('/', authenticate, companyOnly, async (req, res) => {
   try {
     const { status, jobId, search } = req.query;
-    let query = { company: req.companyId };
+    let query = { company: req.companyId }; 
 
-    if (status) query.status = status;
-    if (jobId) query.jobId = jobId;
+    if (status && status !== 'all') query.status = status;
+    if (jobId && jobId !== 'all') query.jobId = jobId;
     if (search) {
       query.$or = [
         { 'candidate.name': { $regex: search, $options: 'i' } },
@@ -23,161 +18,98 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const applicants = await Applicant.find(query)
-      .sort({ appliedAt: -1 })
-      .limit(1000);
+    const applicants = await Applicant.find(query).sort({ appliedAt: -1 });
+    res.json(applicants);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-    res.json({
-      count: applicants.length,
-      applicants
-    });
+// GET stats
+router.get('/stats', authenticate, companyOnly, async (req, res) => {
+  try {
+    const stats = await Applicant.aggregate([
+      { $match: { company: req.user.company._id } },
+      { $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }}
+    ]);
+    res.json(stats);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 // GET single applicant
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, companyOnly, async (req, res) => {
   try {
-    const applicant = await Applicant.findOne({
-      _id: req.params.id,
-      company: req.companyId
-    });
-
-    if (!applicant) {
-      return res.status(404).json({ message: 'الطلب غير موجود | Applicant not found' });
-    }
-
+    const applicant = await Applicant.findOne({ _id: req.params.id, company: req.companyId });
+    if (!applicant) return res.status(404).json({ message: 'Applicant not found' });
     res.json(applicant);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// POST create new applicant
-router.post('/', uploadLimiter, async (req, res) => {
-  try {
-    const errors = validateApplicant(req.body);
-    if (errors.length > 0) {
-      return res.status(400).json({ message: 'خطأ في البيانات | Validation error', errors });
-    }
-
-    const applicant = new Applicant({
-      ...req.body,
-      company: req.companyId
-    });
-
-    const newApplicant = await applicant.save();
-    res.status(201).json({
-      message: 'تم إنشاء الطلب بنجاح | Applicant created',
-      applicant: newApplicant
-    });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-// UPDATE applicant
-router.put('/:id', async (req, res) => {
+// PUT update
+router.put('/:id', authenticate, companyOnly, async (req, res) => {
   try {
     const applicant = await Applicant.findOneAndUpdate(
       { _id: req.params.id, company: req.companyId },
       req.body,
-      { new: true, runValidators: true }
+      { new: true }
     );
-
-    if (!applicant) {
-      return res.status(404).json({ message: 'الطلب غير موجود | Applicant not found' });
-    }
-
-    res.json({
-      message: 'تم تحديث الطلب بنجاح | Applicant updated',
-      applicant
-    });
+    if (!applicant) return res.status(404).json({ message: 'Applicant not found or unauthorized' });
+    res.json(applicant);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// PATCH applicant status
-router.patch('/:id/status', async (req, res) => {
+// POST create
+router.post('/', async (req, res) => {
+  try {
+    const applicant = new Applicant(req.body);
+    const saved = await applicant.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// PATCH status
+router.patch('/:id/status', authenticate, companyOnly, async (req, res) => {
   try {
     const { status } = req.body;
-    const validStatuses = ['Pending', 'Shortlisted', 'Hired', 'Rejected'];
-
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'حالة غير صحيحة | Invalid status' });
-    }
-
     const applicant = await Applicant.findOneAndUpdate(
       { _id: req.params.id, company: req.companyId },
       { status },
       { new: true }
     );
+    if (!applicant) return res.status(404).json({ message: 'Applicant not found or unauthorized' });
+    res.json(applicant);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
 
-    if (!applicant) {
-      return res.status(404).json({ message: 'الطلب غير موجود | Applicant not found' });
-    }
-
-    res.json({
-      message: 'تم تحديث الحالة بنجاح | Status updated',
-      applicant
-    });
+// DELETE
+router.delete('/:id', authenticate, companyOnly, async (req, res) => {
+  try {
+    const applicant = await Applicant.findOneAndDelete({ _id: req.params.id, company: req.companyId });
+    if (!applicant) return res.status(404).json({ message: 'Applicant not found or unauthorized' });
+    res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// DELETE applicant
-router.delete('/:id', authorize('admin', 'hr'), async (req, res) => {
+// CLEAR ALL (For a company)
+router.delete('/clear/all', authenticate, companyOnly, async (req, res) => {
   try {
-    const applicant = await Applicant.findOneAndDelete({
-      _id: req.params.id,
-      company: req.companyId
-    });
-
-    if (!applicant) {
-      return res.status(404).json({ message: 'الطلب غير موجود | Applicant not found' });
-    }
-
-    res.json({ message: 'تم حذف الطلب | Applicant deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// DELETE all applicants for company
-router.delete('/clear/all', authorize('admin'), async (req, res) => {
-  try {
-    const result = await Applicant.deleteMany({ company: req.companyId });
-    res.json({
-      message: `تم حذف ${result.deletedCount} طلب | Deleted applicants`,
-      deletedCount: result.deletedCount
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get statistics
-router.get('/stats', async (req, res) => {
-  try {
-    const total = await Applicant.countDocuments({ company: req.companyId });
-    const byStatus = await Applicant.aggregate([
-      { $match: { company: req.companyId } },
-      { $group: { _id: '$status', count: { $sum: 1 } } }
-    ]);
-
-    const avgScore = (await Applicant.aggregate([
-      { $match: { company: req.companyId } },
-      { $group: { _id: null, avg: { $avg: '$evaluation.total_score' } } }
-    ]))[0] || { avg: 0 };
-
-    res.json({
-      totalApplicants: total,
-      byStatus,
-      averageScore: avgScore.avg
-    });
+    await Applicant.deleteMany({ company: req.companyId });
+    res.json({ message: 'All applicants cleared for this company' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

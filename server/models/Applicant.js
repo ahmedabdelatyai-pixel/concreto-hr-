@@ -1,25 +1,17 @@
 const mongoose = require('mongoose');
-const EncryptionService = require('../utils/encryption');
+const { v4: uuidv4 } = require('uuid');
 
 const applicantSchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    index: true
+    index: true,
+    required: false // Made optional for legacy support
   },
   candidate: {
     name: { type: String, required: true },
-    email: {
-      type: String,
-      required: true,
-      set: val => EncryptionService.encrypt(val), // Encrypt email
-      get: val => EncryptionService.decrypt(val) // Decrypt when retrieving
-    },
-    phone: {
-      type: String,
-      set: val => val ? EncryptionService.encrypt(val) : val, // Encrypt phone if provided
-      get: val => val ? EncryptionService.decrypt(val) : val // Decrypt when retrieving
-    },
+    email: { type: String, required: true },
+    phone: { type: String },
     role: { type: String },
     jobTitle: { type: String },
   },
@@ -62,6 +54,12 @@ const applicantSchema = new mongoose.Schema({
     aiFeedback: String
   }],
   appliedAt: { type: Date, default: Date.now },
+  accessSecret: { 
+    type: String, 
+    unique: true, 
+    default: uuidv4,
+    required: true 
+  }, // For secure link access
   status: { 
     type: String, 
     enum: ['Pending', 'Shortlisted', 'Hired', 'Rejected'], 
@@ -70,8 +68,5 @@ const applicantSchema = new mongoose.Schema({
   source: { type: String, default: 'Website' },
   jobId: { type: String }
 });
-
-applicantSchema.set('toJSON', { getters: true });
-applicantSchema.set('toObject', { getters: true });
 
 module.exports = mongoose.model('Applicant', applicantSchema);

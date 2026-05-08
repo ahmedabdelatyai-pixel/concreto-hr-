@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
 import { analyzeCv, generateQuestions } from '../services/aiApi';
 
@@ -44,8 +45,9 @@ function CvUpload() {
         setCvData(atsResult);
 
         // 2. Initialize Applicant Record Early (for integrity logging)
+        console.log("Initializing applicant with job ID:", candidate.jobId);
         try {
-          const initRes = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/public/applicants/init`, {
+          const initRes = await api.post('/public/applicants/init', {
             candidate: {
               name: candidate.name,
               email: candidate.email,
@@ -54,18 +56,38 @@ function CvUpload() {
             jobId: candidate.jobId,
             source: candidate.source || 'Website'
           });
+          console.log("Applicant initialized successfully:", initRes.data);
           if (initRes.data.applicantId) {
-            useInterviewStore.getState().setCandidateInfo({ _id: initRes.data.applicantId });
+            useInterviewStore.getState().setCandidateInfo({ 
+              applicantId: initRes.data.applicantId,
+              accessSecret: initRes.data.accessSecret
+            });
           }
         } catch (e) {
-          console.error("Failed to init applicant:", e);
+          console.error("Failed to init applicant:", e.response?.data || e.message);
         }
 
         // 3. Generate Tailored Questions based on Job Title AND CV background
-        const customBank = useInterviewStore.getState().candidate.customQuestions;
-        const dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank);
+        const customBank = useInterviewStore.getState().candidate.customQuestions || [];
+        const targetCount = useInterviewStore.getState().candidate.questionCount || 10;
+        
+        let dynamicQuestions = [];
+        try {
+          dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank, targetCount);
+        } catch (e) {
+          console.error("AI Generation failed, using bank/fallback");
+        }
+
         if (dynamicQuestions && dynamicQuestions.length > 0) {
           setQuestions(dynamicQuestions);
+        } else {
+          // Fallback to custom bank if AI fails, or generic if bank is empty
+          const fallback = customBank.length > 0 ? customBank : (
+            isArabic 
+              ? ["أخبرنا عن نفسك وخبراتك.", "لماذا تريد العمل في شركتنا؟", "ما هي أقوى مهاراتك التقنية؟"]
+              : ["Tell us about yourself and your experience.", "Why do you want to work with us?", "What are your strongest technical skills?"]
+          );
+          setQuestions(fallback);
         }
         
         setIsProcessing(false);

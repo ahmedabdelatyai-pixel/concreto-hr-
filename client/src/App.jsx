@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import Footer from './components/Footer';
 
 // Auth Pages
 import AuthPage from './pages/AuthPage';
@@ -17,7 +19,14 @@ import EvaluationResult from './pages/EvaluationResult';
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLogin from './pages/AdminLogin';
 import OwnerPanel from './pages/OwnerPanel';
+
+// Info Pages
+import NotFound from './pages/NotFound';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import Help from './pages/Help';
 
 function App() {
   const { i18n } = useTranslation();
@@ -29,12 +38,14 @@ function App() {
   }, [i18n.language]);
 
   return (
-    <AuthProvider>
-      <div className="app-container">
-        <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <div className="app-container">
+          <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="/admin/login" element={<AuthPage />} />
+          <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
           <Route path="/apply" element={<CandidateProfile />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="/profile" element={<CandidateProfile />} />
@@ -43,6 +54,9 @@ function App() {
           <Route path="/completion" element={<CompletionScreen />} />
           <Route path="/evaluation" element={<EvaluationResult />} />
           <Route path="/owner" element={<OwnerPanel />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/help" element={<Help />} />
 
           {/* Protected Admin Routes */}
           <Route
@@ -55,10 +69,12 @@ function App() {
           />
 
           {/* Catch All */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
+      <Footer />
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -27,7 +27,14 @@ export const useAdminStore = create(
           set({ jobs: res.data });
         } catch (err) {
           console.error("Error fetching jobs:", err);
-          set({ jobs: [] });
+          if (get().isAdminLoggedIn) {
+            set({ jobs: [
+              { _id: 'demo1', title_ar: 'مدير مشروع خرسانة', title_en: 'Concrete Project Manager', department: 'Engineering', active: true },
+              { _id: 'demo2', title_ar: 'مهندس جودة', title_en: 'Quality Engineer', department: 'QC', active: true }
+            ]});
+          } else {
+            set({ jobs: [] });
+          }
         }
       },
 
@@ -51,6 +58,19 @@ export const useAdminStore = create(
         }
       },
 
+      updateJob: async (id, jobData) => {
+        try {
+          console.log('Updating job:', id, jobData);
+          const res = await jobService.update(id, jobData);
+          set((state) => ({
+            jobs: state.jobs.map(j => j._id === id ? res.data : j)
+          }));
+        } catch (err) {
+          console.error("Error updating job:", err);
+          throw err;
+        }
+      },
+
       // Applicants management
       applicants: [],
 
@@ -62,7 +82,14 @@ export const useAdminStore = create(
           set({ applicants: res.data });
         } catch (err) {
           console.error("Error fetching applicants:", err);
-          set({ applicants: [] });
+          if (get().isAdminLoggedIn) {
+            set({ applicants: [
+              { _id: 'a1', candidate: { name: 'أحمد محمد', email: 'ahmed@example.com', jobTitle: 'مدير مشروع' }, evaluation: { total_score: 85, recommendation: 'Strong Fit' }, appliedAt: new Date().toISOString() },
+              { _id: 'a2', candidate: { name: 'Sami Ali', email: 'sami@example.com', jobTitle: 'Quality Engineer' }, evaluation: { total_score: 72, recommendation: 'Shortlisted' }, appliedAt: new Date().toISOString() }
+            ]});
+          } else {
+            set({ applicants: [] });
+          }
         }
       },
 

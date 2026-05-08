@@ -25,9 +25,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // If it's a 401 error, only redirect if NOT in demo mode
+    const isAdminLoggedIn = localStorage.getItem('concreto-admin-store') 
+      ? JSON.parse(localStorage.getItem('concreto-admin-store')).state.isAdminLoggedIn 
+      : false;
+
+    if (error.response?.status === 401 && !isAdminLoggedIn) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      window.location.href = '/admin/login';
     }
     return Promise.reject(error);
   }

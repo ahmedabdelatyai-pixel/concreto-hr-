@@ -71,8 +71,11 @@ function CandidateProfile() {
     const isArabic = i18n.language === 'ar';
     const jobTitle = isArabic ? selectedJob.title_ar : selectedJob.title_en;
     const customQuestions = selectedJob?.customQuestions || [];
+    const questionCount = Number(selectedJob?.questionCount || 10);
 
-    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role, customQuestions });
+    console.log('Setting Candidate Info from Job:', { jobTitle, questionCount, customQuestionsCount: customQuestions.length });
+    
+    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role, customQuestions, questionCount });
     navigate('/upload-cv');
   };
 
