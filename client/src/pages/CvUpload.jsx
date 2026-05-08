@@ -67,27 +67,22 @@ function CvUpload() {
           console.error("Failed to init applicant:", e.response?.data || e.message);
         }
 
-        // 3. Generate Tailored Questions based on Job Title AND CV background
+        // 3. Generate Tailored Questions (Always returns targetCount thanks to robust fallback in aiApi)
         const customBank = useInterviewStore.getState().candidate.customQuestions || [];
-        const targetCount = useInterviewStore.getState().candidate.questionCount || 10;
+        const targetCount = Number(useInterviewStore.getState().candidate.questionCount || 10);
         
-        let dynamicQuestions = [];
+        let finalQuestions = [];
         try {
-          dynamicQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank, targetCount);
+          finalQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank, targetCount);
         } catch (e) {
-          console.error("AI Generation failed, using bank/fallback");
+          console.error("AI Generation failed, using static fallback");
         }
 
-        if (dynamicQuestions && dynamicQuestions.length > 0) {
-          setQuestions(dynamicQuestions);
+        if (finalQuestions && finalQuestions.length > 0) {
+          setQuestions(finalQuestions);
         } else {
-          // Fallback to custom bank if AI fails, or generic if bank is empty
-          const fallback = customBank.length > 0 ? customBank : (
-            isArabic 
-              ? ["أخبرنا عن نفسك وخبراتك.", "لماذا تريد العمل في شركتنا؟", "ما هي أقوى مهاراتك التقنية؟"]
-              : ["Tell us about yourself and your experience.", "Why do you want to work with us?", "What are your strongest technical skills?"]
-          );
-          setQuestions(fallback);
+          // Ultimate safety net
+          setQuestions(customBank.length > 0 ? customBank : [{ question: "Tell us about yourself.", category: "General", weight: 1 }]);
         }
         
         setIsProcessing(false);

@@ -116,7 +116,10 @@ const getBlueprintForRole = (jobTitle, lang) => {
 
 export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.warn("No Gemini API key. Using custom bank + fallback.");
+    return generateFallbackQuestions(customBank, targetCount, language);
+  }
 
   // Calculate how many AI questions we need to fill the gap
   const customCount = customBank.length;
@@ -125,77 +128,161 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
   // If we already have enough custom questions, just return them formatted
   if (needed === 0) {
     return customBank.slice(0, targetCount).map(q => ({
-      question: typeof q === 'string' ? q : q.text,
+      question: typeof q === 'string' ? q : (q.text || q.question),
       category: q.category || 'Technical',
       weight: q.weight || 1
     }));
   }
 
   const isArabic = language === 'ar';
-  const langText = isArabic ? 'Arabic (العربية)' : 'English';
   const blueprint = getBlueprintForRole(jobTitle, language);
   const cvContext = cvData
-    ? `\nThe candidate's CV summary: "${cvData.summary}". Their declared skills: ${cvData.skills?.join(', ')}.`
+    ? `\nCANDIDATE CV DATA:\nSummary: "${cvData.summary}"\nSkills: ${cvData.skills?.join(', ')}.\nYears of Experience: ${cvData.experience_years}`
     : '';
 
   const prompt = isArabic ? `
-أنت محاور تقني محترف في منصة TalentFlow.
-مهمتك: توليد ${needed} أسئلة مقابلة إضافية للوظيفة: "${jobTitle}" لتكملة قائمة الأسئلة المخصصة.
+أنت محاور تقني خبير في منصة TalentFlow.
+مهمتك: توليد بالضبط ${needed} أسئلة مقابلة ذكية لوظيفة: "${jobTitle}".
+هذه الأسئلة ستكمل مجموعة الأسئلة المخصصة لتصل إلى إجمالي ${targetCount} أسئلة.
 
-قواعد صارمة:
-1. الأسئلة يجب أن تكون باللغة العربية فقط.
-2. لا تكرر أي فكرة موجودة في الـ CV أو الأسئلة العامة.
-3. التوزيع المطلوب للـ ${needed} أسئلة:
-${blueprint}
+سياق المرشح (بناءً على الـ CV):
 ${cvContext}
 
-أخرج JSON array فقط يحتوي على بالضبط ${needed} objects بهذا الشكل:
-[{"question": "السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]` 
+قواعد توليد الـ ${needed} أسئلة:
+1. يجب أن تكون الأسئلة باللغة العربية.
+2. اجعل الأسئلة تدمج بين متطلبات الوظيفة وخبرات المرشح المذكورة أعلاه.
+3. التوزيع المقترح للفئات:
+${blueprint}
+
+المخرجات المطلوبة:
+أخرج JSON array فقط يحتوي على بالضبط ${needed} كائنات بهذا الشكل:
+[{"question": "نص السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]` 
   : `
-You are a professional technical interviewer on TalentFlow.
-Your task: Generate exactly ${needed} additional interview questions for the role: "${jobTitle}" to complete the interview set.
+You are a senior technical recruiter at TalentFlow.
+Your task: Generate exactly ${needed} intelligent interview questions for the role: "${jobTitle}".
+These questions will complement existing custom questions to reach a total of ${targetCount}.
 
-Strict Rules:
-1. Questions MUST be in English only.
-2. Distribution for these ${needed} questions:
-${blueprint}
+CANDIDATE CONTEXT (From CV):
 ${cvContext}
 
-Return ONLY a JSON array of exactly ${needed} objects in this format:
-[{"question": "Question here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]`;
+RULES for generating the ${needed} questions:
+1. Questions MUST be in English.
+2. Tailor questions based on the job title and the candidate's CV context provided above.
+3. Category distribution guidelines:
+${blueprint}
+
+OUTPUT FORMAT:
+Return ONLY a JSON array of exactly ${needed} objects:
+[{"question": "Question text here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]`;
 
   try {
-    const aiResult = await callGemini(apiKey, prompt, true, 0.85);
+    const aiResult = await callGemini(apiKey, prompt, true, 0.7);
     let aiQuestions = [];
     
     if (Array.isArray(aiResult)) {
       aiQuestions = aiResult;
-    } else {
+    } else if (aiResult && typeof aiResult === 'object') {
+      // Handle cases where AI returns { "questions": [...] } or similar
       aiQuestions = Object.values(aiResult).find(v => Array.isArray(v)) || [];
     }
 
     // Format Custom Questions
     const formattedCustom = customBank.map(q => ({
-      question: typeof q === 'string' ? q : q.text,
+      question: typeof q === 'string' ? q : (q.text || q.question),
       category: q.category || 'Technical',
       weight: q.weight || 1
     }));
 
     // Format AI Questions
     const formattedAi = aiQuestions.map(q => ({
-      question: typeof q === 'string' ? q : q.question,
+      question: typeof q === 'string' ? q : (q.question || q.text),
       category: q.category || 'Technical',
       weight: q.weight || 1
     }));
 
     // Merge: Custom first, then AI
-    return [...formattedCustom, ...formattedAi].slice(0, targetCount);
+    let merged = [...formattedCustom, ...formattedAi];
+    
+    // Final check & padding if needed
+    if (merged.length < targetCount) {
+      const paddingNeeded = targetCount - merged.length;
+      const staticPadding = getStaticFallback(language, paddingNeeded, merged.map(q => q.question));
+      merged = [...merged, ...staticPadding];
+    }
+
+    return merged.slice(0, targetCount);
     
   } catch (error) {
     console.error('Gemini Question Generation Error:', error);
-    return null;
+    return generateFallbackQuestions(customBank, targetCount, language);
   }
 };
+
+// Helper for comprehensive fallback
+const getStaticFallback = (lang, count, existingQuestions = []) => {
+  const isArabic = lang === 'ar';
+  const pool = isArabic ? [
+    "أخبرنا عن أكبر تحدي واجهته في عملك السابق وكيف تعاملت معه؟",
+    "كيف تدير وقتك عندما يكون لديك مهام متعددة ذات مواعيد نهائية ضيقة؟",
+    "لماذا تعتقد أنك المرشح الأنسب لهذه الوظيفة بالتحديد؟",
+    "حدثنا عن موقف اضطررت فيه للتعامل مع زميل صعب في العمل.",
+    "ما هي طموحاتك المهنية للخمس سنوات القادمة؟",
+    "كيف تحافظ على مستوى أدائك تحت ضغط العمل المستمر؟",
+    "صف موقفاً اتخذت فيه مبادرة لتحسين سير العمل في شركتك السابقة.",
+    "ما هي أهم مهارة تقنية اكتسبتها مؤخراً وكيف طبقتها؟",
+    "كيف تتعامل مع التغييرات المفاجئة في خطط العمل أو الأولويات؟",
+    "ماذا تفعل إذا اكتشفت خطأً كبيراً ارتكبه أحد زملائك؟",
+    "حدثنا عن مشروع تفتخر بإنجازه والتحديات التي واجهتك فيه.",
+    "كيف تضمن جودة عملك وتتجنب الأخطاء المتكررة؟"
+  ] : [
+    "Tell us about the biggest challenge you faced in your previous job and how you handled it?",
+    "How do you manage your time when you have multiple tasks with tight deadlines?",
+    "Why do you think you are the best fit for this specific position?",
+    "Tell us about a time you had to deal with a difficult colleague.",
+    "What are your career goals for the next five years?",
+    "How do you maintain your performance level under continuous work pressure?",
+    "Describe a situation where you took the initiative to improve workflow in your previous company.",
+    "What is the most important technical skill you've recently acquired and how did you apply it?",
+    "How do you handle sudden changes in work plans or priorities?",
+    "What would you do if you discovered a major mistake made by one of your colleagues?",
+    "Tell us about a project you're proud of and the challenges you faced.",
+    "How do you ensure the quality of your work and avoid repetitive mistakes?"
+  ];
+
+  const result = [];
+  let i = 0;
+  while (result.length < count && i < pool.length) {
+    if (!existingQuestions.includes(pool[i])) {
+      result.push({ question: pool[i], category: 'General', weight: 1 });
+    }
+    i++;
+  }
+  
+  // Last resort: if pool is exhausted
+  while (result.length < count) {
+    result.push({ 
+      question: isArabic ? "ما هي أهم إنجازاتك المهنية؟" : "What is your greatest professional achievement?", 
+      category: 'General', 
+      weight: 1 
+    });
+  }
+  
+  return result;
+};
+
+const generateFallbackQuestions = (customBank, targetCount, language) => {
+  const formattedCustom = customBank.map(q => ({
+    question: typeof q === 'string' ? q : (q.text || q.question),
+    category: q.category || 'Technical',
+    weight: q.weight || 1
+  }));
+  
+  const paddingNeeded = Math.max(0, targetCount - formattedCustom.length);
+  const padding = getStaticFallback(language, paddingNeeded, formattedCustom.map(q => q.question));
+  
+  return [...formattedCustom, ...padding].slice(0, targetCount);
+};
+
 
 
 
