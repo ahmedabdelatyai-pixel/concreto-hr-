@@ -13,12 +13,14 @@ function LandingPage() {
   const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
-    // Capture Source Tracking
-    const source = searchParams.get('src');
-    if (source) {
-      setCandidateInfo({ source });
+    // Capture UTM / Source Tracking from tracking links
+    const utm_source = searchParams.get('utm_source') || searchParams.get('src');
+    const utm_medium = searchParams.get('utm_medium') || '';
+    if (utm_source) {
+      setCandidateInfo({ source: utm_source, utm_source, utm_medium });
     }
   }, [searchParams, setCandidateInfo]);
+
 
   useEffect(() => {
     const checkServer = async () => {

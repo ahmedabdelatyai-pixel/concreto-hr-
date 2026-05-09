@@ -7,7 +7,7 @@ const { checkCvLimit, getCompanyPlanStatus } = require('../middleware/checkLimit
 router.get('/jobs', async (req, res) => {
   try {
     const jobs = await Job.find({ active: true })
-      .select('title_en title_ar description_en description_ar department customQuestions questionCount createdAt')
+      .select('title_en title_ar description description_en description_ar department customQuestions questionCount createdAt')
       .sort({ createdAt: -1 });
 
     res.json({ jobs });
@@ -16,14 +16,15 @@ router.get('/jobs', async (req, res) => {
   }
 });
 
+
 // Public job detail by ID
 router.get('/jobs/:id', async (req, res) => {
   try {
     const job = await Job.findOne({ _id: req.params.id, active: true })
-      .select('title_en title_ar description_en description_ar department customQuestions company questionCount');
+      .select('title_en title_ar description description_en description_ar department customQuestions company questionCount');
 
     if (!job) {
-      return res.status(404).json({ message: 'الوظيفة غير موجودة | Job not found' });
+      return res.status(404).json({ message: 'Job not found' });
     }
 
     res.json({ job });
@@ -31,6 +32,7 @@ router.get('/jobs/:id', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
 
 // POST log integrity incident (Public access for candidates)
 router.post('/integrity', async (req, res) => {
@@ -75,7 +77,7 @@ router.post('/integrity', async (req, res) => {
 // POST init applicant (Public)
 router.post('/applicants/init', async (req, res) => {
   try {
-    const { candidate, jobId, source } = req.body;
+    const { candidate, jobId, source, utm_source, utm_medium, utm_campaign } = req.body;
     const Applicant = require('../models/Applicant');
 
     const job = await Job.findById(jobId);
@@ -93,43 +95,65 @@ router.post('/applicants/init', async (req, res) => {
     const applicant = new Applicant({
       candidate,
       jobId,
-      source: source || 'Website',
+      source: utm_source || source || 'Website',
+      utm_source: utm_source || source || '',
+      utm_medium: utm_medium || '',
+      utm_campaign: utm_campaign || '',
       company: job.company,
       status: 'Pending'
     });
 
     const saved = await applicant.save();
-    res.status(201).json({ 
+    res.status(201).json({
       applicantId: saved._id,
-      accessSecret: saved.accessSecret 
+      accessSecret: saved.accessSecret
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
+
 // PATCH submit applicant results (Public) + Integrately Webhook
 router.patch('/applicants/:id/submit', async (req, res) => {
   try {
-    const { answers, evaluation, cvData, cvFile, accessSecret } = req.body;
+    const { answers, evaluation, cvData, cvFile, accessSecret, cheatAttempts, integrityScore } = req.body;
     const Applicant = require('../models/Applicant');
+
+    // Enrich answers with isCorrect flag (preserve what client calculated)
+    const enrichedAnswers = (answers || []).map(a => ({
+      ...a,
+      isCorrect: a.isCorrect !== undefined ? a.isCorrect : null
+    }));
+
+    // Build evaluation object with new fields
+    const enrichedEvaluation = {
+      ...evaluation,
+      gap_analysis: evaluation?.gap_analysis || '',
+      mcq_score: evaluation?.mcq_score,
+      essay_score: evaluation?.essay_score,
+    };
 
     // SECURITY: Must match both ID and secret to update
     const applicant = await Applicant.findOneAndUpdate(
       { _id: req.params.id, accessSecret: accessSecret },
-      { 
-        answers, 
-        evaluation, 
-        cvData, 
+      {
+        answers: enrichedAnswers,
+        evaluation: enrichedEvaluation,
+        cvData,
         cvFile,
-        appliedAt: new Date()
+        appliedAt: new Date(),
+        // ✅ Integrity data
+        cheatAttempts: cheatAttempts || 0,
+        integrityScore: integrityScore !== undefined ? integrityScore : 100,
       },
       { new: true }
     );
 
     if (!applicant) {
-      return res.status(403).json({ message: 'وصول غير مصرح به أو رمز غير صالح | Unauthorized or invalid secret' });
+      return res.status(403).json({ message: 'Unauthorized or invalid secret' });
     }
+
 
     // ─── INTEGRATELY WEBHOOK ─────────────────────────────────────────────────
     // يتم إرسال الـ Webhook بعد نجاح الـ submit لإعلام Integrately

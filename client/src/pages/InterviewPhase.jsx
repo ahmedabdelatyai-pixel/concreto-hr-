@@ -58,7 +58,10 @@ function InterviewPhase() {
   const candidate = useInterviewStore(state => state.candidate);
   const cvData = useInterviewStore(state => state.cvData);
   const generatedQuestions = useInterviewStore(state => state.generatedQuestions);
+  const correctAnswers = useInterviewStore(state => state.correctAnswers); // ✅
   const setQuestions = useInterviewStore(state => state.setQuestions);
+  const incrementCheat = useInterviewStore(state => state.incrementCheat); // ✅
+  const storeCheatAttempts = useInterviewStore(state => state.cheatAttempts); // ✅
   
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -71,12 +74,12 @@ function InterviewPhase() {
       if (!isInitializing && timerActive && document.hidden) {
         setShowWarning(true);
         setCheatAttempts(prev => prev + 1);
-        
-        // Log integrity incident
+        incrementCheat(); // ✅ sync to store
+
         logIntegrityIncident('tab_switch', 'Candidate switched tabs or minimized window', 'medium', {
           questionNumber: currentStep + 1,
           timeRemaining: timeLeft,
-          totalIncidents: cheatAttempts + 1
+          totalIncidents: storeCheatAttempts + 1
         });
       }
     };
@@ -85,11 +88,12 @@ function InterviewPhase() {
       if (!isInitializing && timerActive && !showWarning) {
         setShowWarning(true);
         setCheatAttempts(prev => prev + 1);
-        
+        incrementCheat(); // ✅
+
         logIntegrityIncident('window_blur', 'Window lost focus', 'low', {
           questionNumber: currentStep + 1,
           timeRemaining: timeLeft,
-          totalIncidents: cheatAttempts + 1
+          totalIncidents: storeCheatAttempts + 1
         });
       }
     };
@@ -336,18 +340,21 @@ function InterviewPhase() {
   const handleSend = useCallback((force = false) => {
     if ((!answer.trim() && !force) || (!inputEnabled && !force)) return;
 
+
     const userMsg = answer.trim() || (isArabic ? "[لم يتم تقديم إجابة ضمن الوقت المحدد]" : "[No answer provided in time]");
     
-    // Get current question with category and weight
     const currentQ = questions[currentStep];
+    const qType = currentQ?.type || 'essay';
     const questionData = {
       question: typeof currentQ === 'string' ? currentQ : currentQ.question,
       answer: userMsg,
-      category: currentQ.category || 'Technical',
-      weight: currentQ.weight || 1
+      category: currentQ?.category || 'Technical',
+      weight: currentQ?.weight || 1,
+      type: qType,
+      questionIndex: currentStep
     };
-    
-    addAnswer(questionData.question, userMsg, questionData.category, questionData.weight);
+
+    addAnswer(questionData.question, userMsg, questionData.category, questionData.weight, questionData.type, currentStep);
     
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: userMsg, typed: true }]);
     setAnswer('');
@@ -505,108 +512,158 @@ function InterviewPhase() {
         <div ref={chatEndRef} style={{ height: '20px' }}></div>
       </div>
 
-      {/* Input Area */}
-      <div className="chat-input-area" style={{ 
-        padding: '1.5rem 10%', 
-        backgroundColor: '#0a1120', 
-        borderTop: '1px solid rgba(255,255,255,0.05)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '1rem',
-        zIndex: 10,
-        position: 'relative'
-      }}>
-        {/* Microphone Button */}
-        <button 
-          className={`mic-btn ${isRecording ? 'active animate-pulse' : ''}`}
-          onClick={toggleRecording}
-          disabled={!inputEnabled}
-          style={{ 
-            width: '56px', 
-            height: '56px', 
-            borderRadius: '16px', 
-            backgroundColor: isRecording ? '#ef4444' : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: inputEnabled ? 'pointer' : 'not-allowed',
-            transition: 'all 0.3s ease',
-            color: isRecording ? '#fff' : 'var(--color-text)'
-          }}
-          title={isArabic ? 'تحدث' : 'Speak'}
-        >
-          <span style={{ fontSize: '1.4rem' }}>{isRecording ? '⏹️' : '🎤'}</span>
-        </button>
+      {/* Input Area — type-aware */}
+      {(() => {
+        const currentQ = questions[currentStep];
+        const qType = currentQ?.type || 'essay';
+        const choices = currentQ?.choices || [];
 
-        <textarea
-          ref={textareaRef}
-          rows="1"
-          placeholder={isRecording ? (isArabic ? 'جاري الاستماع...' : 'Listening...') : (isArabic ? 'اكتب إجابتك هنا بتركيز...' : 'Type your answer here...')}
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={!inputEnabled}
-          style={{ 
-            opacity: inputEnabled ? 1 : 0.5, 
-            fontSize: '1.05rem', 
-            padding: '1rem 1.5rem', 
-            borderRadius: '16px', 
-            backgroundColor: 'rgba(255,255,255,0.03)', 
-            color: 'var(--color-text)', 
-            border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`, 
-            flex: 1, 
-            resize: 'none',
-            maxHeight: '120px',
-            transition: 'border-color 0.3s ease'
-          }}
-        ></textarea>
+        // ── MCQ: 4 choice buttons ──
+        if (qType === 'mcq' && choices.length > 0 && inputEnabled) {
+          return (
+            <div style={{
+              padding: '1.25rem 10%', backgroundColor: '#0a1120',
+              borderTop: '1px solid rgba(255,255,255,0.05)', zIndex: 10
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.75rem', textAlign: 'center' }}>
+                {isArabic ? '🎯 اختر الإجابة الصحيحة' : '🎯 Select the correct answer'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                {choices.map((choice, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setAnswer(choice); setTimeout(() => handleSendRef.current?.(false), 100); }}
+                    style={{
+                      padding: '0.8rem 1rem', borderRadius: '12px', fontSize: '0.9rem',
+                      backgroundColor: 'rgba(252,163,17,0.08)', border: '1px solid rgba(252,163,17,0.25)',
+                      color: '#fff', cursor: 'pointer', textAlign: 'right', transition: 'all 0.2s',
+                      fontWeight: '500'
+                    }}
+                    onMouseEnter={e => { e.target.style.backgroundColor = 'rgba(252,163,17,0.2)'; e.target.style.borderColor = '#fca311'; }}
+                    onMouseLeave={e => { e.target.style.backgroundColor = 'rgba(252,163,17,0.08)'; e.target.style.borderColor = 'rgba(252,163,17,0.25)'; }}
+                  >
+                    <span style={{ color: '#fca311', fontWeight: '700', marginLeft: '6px' }}>
+                      {['أ', 'ب', 'ج', 'د'][i] || String.fromCharCode(65 + i)}
+                    </span> {choice}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }
 
-        <button 
-          className="chat-send-btn"
-          onClick={() => handleSend(false)}
-          disabled={!answer.trim() || !inputEnabled}
-          style={{ 
-            width: '56px', 
-            height: '56px', 
-            borderRadius: '16px', 
-            backgroundColor: 'var(--color-primary)',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: (answer.trim() && inputEnabled) ? 'pointer' : 'not-allowed',
-            opacity: (answer.trim() && inputEnabled) ? 1 : 0.5
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
+        // ── T/F: True / False buttons ──
+        if (qType === 'truefalse' && inputEnabled) {
+          return (
+            <div style={{
+              padding: '1.25rem 10%', backgroundColor: '#0a1120',
+              borderTop: '1px solid rgba(255,255,255,0.05)', zIndex: 10
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.75rem', textAlign: 'center' }}>
+                {isArabic ? '✅ صح أم غلط؟' : '✅ True or False?'}
+              </div>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                {[
+                  { label: isArabic ? '✅ صحيح' : '✅ True', value: 'true', color: '#10b981' },
+                  { label: isArabic ? '❌ خاطئ' : '❌ False', value: 'false', color: '#ef4444' }
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setAnswer(opt.value); setTimeout(() => handleSendRef.current?.(false), 100); }}
+                    style={{
+                      flex: 1, padding: '1rem', borderRadius: '12px', fontSize: '1.05rem',
+                      fontWeight: '800', border: `2px solid ${opt.color}`,
+                      backgroundColor: `${opt.color}15`, color: opt.color,
+                      cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => { e.target.style.backgroundColor = `${opt.color}30`; }}
+                    onMouseLeave={e => { e.target.style.backgroundColor = `${opt.color}15`; }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }
 
-        {/* Recording Visualizer Overlay */}
-        {isRecording && (
-          <div style={{ 
-            position: 'absolute', 
-            top: '-30px', 
-            left: '50%', 
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(239, 68, 68, 0.9)',
-            color: '#fff',
-            padding: '4px 16px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: '600',
-            pointerEvents: 'none'
+        // ── Essay: default textarea + mic ──
+        return (
+          <div className="chat-input-area" style={{
+            padding: '1.5rem 10%', backgroundColor: '#0a1120',
+            borderTop: '1px solid rgba(255,255,255,0.05)',
+            display: 'flex', alignItems: 'center', gap: '1rem',
+            zIndex: 10, position: 'relative'
           }}>
-            {isArabic ? 'جاري تحويل صوتك لنص...' : 'Transcribing voice to text...'}
-          </div>
-        )}
-      </div>
-    </div>
+            <button
+              className={`mic-btn ${isRecording ? 'active animate-pulse' : ''}`}
+              onClick={toggleRecording}
+              disabled={!inputEnabled}
+              style={{
+                width: '56px', height: '56px', borderRadius: '16px',
+                backgroundColor: isRecording ? '#ef4444' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: inputEnabled ? 'pointer' : 'not-allowed', transition: 'all 0.3s ease',
+                color: isRecording ? '#fff' : 'var(--color-text)'
+              }}
+              title={isArabic ? 'تحدث' : 'Speak'}
+            >
+              <span style={{ fontSize: '1.4rem' }}>{isRecording ? '⏹️' : '🎤'}</span>
+            </button>
 
+            <textarea
+              ref={textareaRef}
+              rows="1"
+              placeholder={isRecording ? (isArabic ? 'جاري الاستماع...' : 'Listening...') : (isArabic ? 'اكتب إجابتك هنا بتركيز...' : 'Type your answer here...')}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={!inputEnabled}
+              style={{
+                opacity: inputEnabled ? 1 : 0.5, fontSize: '1.05rem',
+                padding: '1rem 1.5rem', borderRadius: '16px',
+                backgroundColor: 'rgba(255,255,255,0.03)', color: 'var(--color-text)',
+                border: `1px solid ${isRecording ? '#ef4444' : 'var(--color-border)'}`,
+                flex: 1, resize: 'none', maxHeight: '120px', transition: 'border-color 0.3s ease'
+              }}
+            />
+
+            <button
+              className="chat-send-btn"
+              onClick={() => handleSend(false)}
+              disabled={!answer.trim() || !inputEnabled}
+              style={{
+                width: '56px', height: '56px', borderRadius: '16px',
+                backgroundColor: 'var(--color-primary)', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: (answer.trim() && inputEnabled) ? 'pointer' : 'not-allowed',
+                opacity: (answer.trim() && inputEnabled) ? 1 : 0.5
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+
+            {isRecording && (
+              <div style={{
+                position: 'absolute', top: '-30px', left: '50%', transform: 'translateX(-50%)',
+                backgroundColor: 'rgba(239, 68, 68, 0.9)', color: '#fff',
+                padding: '4px 16px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600',
+                pointerEvents: 'none'
+              }}>
+                {isArabic ? 'جاري تحويل صوتك لنص...' : 'Transcribing voice to text...'}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </div>
   );
 }
 
 export default InterviewPhase;
+
+

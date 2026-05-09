@@ -73,10 +73,12 @@ function CandidateProfile() {
     const customQuestions = selectedJob?.customQuestions || [];
     const questionCount = Number(selectedJob?.questionCount || 10);
 
+    const jobDescription = selectedJob?.description || selectedJob?.description_en || '';
     console.log('Setting Candidate Info from Job:', { jobTitle, questionCount, customQuestionsCount: customQuestions.length });
-    
-    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role, customQuestions, questionCount });
+
+    setCandidateInfo({ ...formData, jobTitle, jobId: formData.role, customQuestions, questionCount, jobDescription });
     navigate('/upload-cv');
+
   };
 
   const handleChange = (e) => {

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
 import { analyzeCv, generateQuestions } from '../services/aiApi';
@@ -8,13 +8,16 @@ import { analyzeCv, generateQuestions } from '../services/aiApi';
 function CvUpload() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+  const [processingStep, setProcessingStep] = useState('');
+
   const setCvData = useInterviewStore(state => state.setCvData);
   const setCvFile = useInterviewStore(state => state.setCvFile);
   const setQuestions = useInterviewStore(state => state.setQuestions);
+  const setCorrectAnswers = useInterviewStore(state => state.setCorrectAnswers);
   const candidate = useInterviewStore(state => state.candidate);
 
   const handleFileChange = (e) => {
@@ -26,26 +29,28 @@ function CvUpload() {
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
-      // Save raw file as base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Data = reader.result;
-        setCvFile({
-          name: file.name,
-          type: file.type,
-          data: base64Data
-        });
+        setCvFile({ name: file.name, type: file.type, data: base64Data });
 
-        // 1. Analyze CV (Now uses Gemini to generate a profile)
+        // Step 1: Analyze CV
+        setProcessingStep(isArabic ? 'جاري تحليل السيرة الذاتية...' : 'Analyzing CV...');
         const atsResult = await analyzeCv(file);
         setCvData(atsResult);
 
-        // 2. Initialize Applicant Record Early (for integrity logging)
-        console.log("Initializing applicant with job ID:", candidate.jobId);
+        // Step 2: Init applicant (with UTM source)
+        setProcessingStep(isArabic ? 'جاري تسجيل طلبك...' : 'Registering your application...');
+        
+        // Read UTM params from URL
+        const utm_source = searchParams.get('utm_source') || candidate.source || 'direct';
+        const utm_medium = searchParams.get('utm_medium') || '';
+        const utm_campaign = searchParams.get('utm_campaign') || '';
+
         try {
           const initRes = await api.post('/public/applicants/init', {
             candidate: {
@@ -54,44 +59,61 @@ function CvUpload() {
               jobTitle: candidate.jobTitle
             },
             jobId: candidate.jobId,
-            source: candidate.source || 'Website'
+            source: utm_source,
+            utm_source,
+            utm_medium,
+            utm_campaign,
           });
-          console.log("Applicant initialized successfully:", initRes.data);
           if (initRes.data.applicantId) {
-            useInterviewStore.getState().setCandidateInfo({ 
+            useInterviewStore.getState().setCandidateInfo({
               applicantId: initRes.data.applicantId,
               accessSecret: initRes.data.accessSecret
             });
           }
         } catch (e) {
-          console.error("Failed to init applicant:", e.response?.data || e.message);
+          console.error('Failed to init applicant:', e.response?.data || e.message);
         }
 
-        // 3. Generate Tailored Questions (Always returns targetCount thanks to robust fallback in aiApi)
+        // Step 3: Generate structured questions (MCQ + T/F + Essay)
+        setProcessingStep(isArabic ? 'جاري توليد الأسئلة المخصصة...' : 'Generating personalized questions...');
         const customBank = useInterviewStore.getState().candidate.customQuestions || [];
         const targetCount = Number(useInterviewStore.getState().candidate.questionCount || 10);
-        
+        const jobDescription = useInterviewStore.getState().candidate.jobDescription || '';
+
         let finalQuestions = [];
+        let correctAnswers = {};
         try {
-          finalQuestions = await generateQuestions(candidate.jobTitle, atsResult, i18n.language, customBank, targetCount);
+          const result = await generateQuestions(
+            candidate.jobTitle,
+            atsResult,
+            i18n.language,
+            customBank,
+            targetCount,
+            jobDescription
+          );
+          finalQuestions = result.questions || [];
+          correctAnswers = result.correctAnswers || {};
         } catch (e) {
-          console.error("AI Generation failed, using static fallback");
+          console.error('AI Generation failed:', e.message);
         }
 
-        if (finalQuestions && finalQuestions.length > 0) {
+        if (finalQuestions.length > 0) {
           setQuestions(finalQuestions);
+          setCorrectAnswers(correctAnswers);
         } else {
-          // Ultimate safety net
-          setQuestions(customBank.length > 0 ? customBank : [{ question: "Tell us about yourself.", category: "General", weight: 1 }]);
+          const fallback = customBank.length > 0
+            ? customBank.map(q => ({ type: 'essay', question: q.text || q, category: q.category || 'General', weight: 1 }))
+            : [{ type: 'essay', question: isArabic ? 'أخبرنا عن نفسك.' : 'Tell us about yourself.', category: 'General', weight: 1 }];
+          setQuestions(fallback);
         }
-        
+
         setIsProcessing(false);
         navigate('/interview');
       };
       reader.readAsDataURL(file);
-      
+
     } catch (error) {
-      console.error("Upload/Generation error:", error);
+      console.error('Upload error:', error);
       setIsProcessing(false);
     }
   };
@@ -114,18 +136,18 @@ function CvUpload() {
       <div className="card text-center card-glow">
         <h2 style={{ marginBottom: '0.5rem' }}>{t('cv.title')}</h2>
         <p className="text-muted" style={{ marginBottom: '2rem' }}>
-          {isArabic ? 'ارفع سيرتك الذاتية لكي يقوم الذكاء الاصطناعي بتحليلها' : 'Upload your CV for AI analysis'}
+          {isArabic ? 'ارفع سيرتك الذاتية لكي يقوم الذكاء الاصطناعي بتحليلها وتوليد أسئلة مخصصة لك' : 'Upload your CV for AI analysis and personalized question generation'}
         </p>
-        
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileChange} 
-          accept=".pdf,.doc,.docx" 
-          style={{ display: 'none' }} 
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".pdf,.doc,.docx"
+          style={{ display: 'none' }}
         />
 
-        <div 
+        <div
           onClick={() => !isProcessing && fileInputRef.current?.click()}
           style={{
             border: '2px dashed var(--color-border)',
@@ -140,8 +162,8 @@ function CvUpload() {
         >
           {isProcessing ? (
             <div>
-              <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontWeight: 'bold', marginBottom: '1rem' }}>
-                {isArabic ? 'جاري تحليل البيانات وتوليد الأسئلة...' : 'Analyzing data and generating questions...'}
+              <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontWeight: 'bold', marginBottom: '0.75rem', fontSize: '1rem' }}>
+                {processingStep || (isArabic ? 'جاري المعالجة...' : 'Processing...')}
               </div>
               <div className="progress-container">
                 <div className="progress-bar" style={{ width: '100%', animation: 'shimmer 2s infinite linear' }}></div>
@@ -159,10 +181,10 @@ function CvUpload() {
             </div>
           )}
         </div>
-        
-        <button 
-          className="btn btn-primary" 
-          onClick={handleUpload} 
+
+        <button
+          className="btn btn-primary"
+          onClick={handleUpload}
           disabled={isProcessing || !file}
           style={{ width: '100%', padding: '0.9rem' }}
         >

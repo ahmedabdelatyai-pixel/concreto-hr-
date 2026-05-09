@@ -562,10 +562,18 @@ function OwnerPanel() {
                       onChange={(e) => setNewCompany({ ...newCompany, subscription: e.target.value })}
                       style={{ padding: '0.8rem' }}
                     >
-                      <option value="free">{isAr ? 'مجاني' : 'Free'}</option>
-                      <option value="starter">{isAr ? 'مبتدئ' : 'Starter'}</option>
-                      <option value="pro">{isAr ? 'احترافي' : 'Pro'}</option>
-                      <option value="enterprise">{isAr ? 'مؤسسي' : 'Enterprise'}</option>
+                      {plans.length > 0 ? plans.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.displayName} — {p.cvLimit >= 9999 ? '∞' : p.cvLimit} {isAr ? 'CV/شهر' : 'CVs/mo'} | {p.jobLimit >= 9999 ? '∞' : p.jobLimit} {isAr ? 'وظيفة' : 'jobs'} | ${p.price}/mo
+                        </option>
+                      )) : (
+                        <>
+                          <option value="free">{isAr ? 'مجاني' : 'Free'}</option>
+                          <option value="starter">{isAr ? 'مبتدئ' : 'Starter'}</option>
+                          <option value="professional">{isAr ? 'احترافي' : 'Professional'}</option>
+                          <option value="enterprise">{isAr ? 'مؤسسي' : 'Enterprise'}</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -1058,9 +1066,17 @@ function OwnerPanel() {
                   <div className="form-group">
                     <label className="form-label">{isAr ? 'الباقة' : 'Plan'}</label>
                     <select className="form-control" value={editForm.subscription} onChange={e => setEditForm({...editForm, subscription: e.target.value})}>
-                      <option value="starter">Starter (50/mo)</option>
-                      <option value="professional">Professional (200/mo)</option>
-                      <option value="enterprise">Enterprise (Unlimited)</option>
+                      {plans.length > 0 ? plans.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.displayName} — {p.cvLimit >= 9999 ? '∞' : p.cvLimit} {isAr ? 'CV/شهر' : 'CVs/mo'} | {p.jobLimit >= 9999 ? '∞' : p.jobLimit} {isAr ? 'وظيفة' : 'jobs'} | ${p.price}/mo
+                        </option>
+                      )) : (
+                        <>
+                          <option value="starter">Starter</option>
+                          <option value="professional">Professional</option>
+                          <option value="enterprise">Enterprise</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>

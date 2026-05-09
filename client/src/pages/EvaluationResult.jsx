@@ -18,55 +18,75 @@ function EvaluationResult() {
   const setEvaluation = useInterviewStore(state => state.setEvaluation);
   const addApplicant = useAdminStore(state => state.addApplicant);
   const generatedQuestions = useInterviewStore(state => state.generatedQuestions);
+  // ✅ NEW
+  const correctAnswers = useInterviewStore(state => state.correctAnswers);
+  const cheatAttempts = useInterviewStore(state => state.cheatAttempts);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
       let evalResult = evaluation;
       if (!evalResult) {
-        // Extract categories from questions for weighted evaluation
-        const questionCategories = generatedQuestions.map(q => 
+        const questionCategories = generatedQuestions.map(q =>
           typeof q === 'string' ? 'Technical' : (q.category || 'Technical')
         );
-        evalResult = await evaluateInterview(answers, candidate.jobTitle, questionCategories);
+        const cvData = useInterviewStore.getState().cvData;
+        const jobDescription = useInterviewStore.getState().candidate?.jobDescription || '';
+
+        // ✅ Pass correctAnswers, cvData, jobDescription for MCQ scoring + Gap Analysis
+        evalResult = await evaluateInterview(
+          answers,
+          candidate.jobTitle,
+          questionCategories,
+          correctAnswers,
+          cvData,
+          jobDescription
+        );
         setEvaluation(evalResult);
       }
 
       // Save applicant results to backend (once)
-      console.log("Checking if ready to save result. Candidate ID:", candidate.applicantId);
       if (!savedRef.current && evalResult && candidate.applicantId) {
         savedRef.current = true;
-        console.log("Submitting final evaluation results for ID:", candidate.applicantId);
-        
         try {
+          // Calculate integrity score (100 - 10 per cheat, min 0)
+          const integrityScore = Math.max(0, 100 - (cheatAttempts * 10));
+
           const mappedData = {
-            answers,
+            answers: evalResult.answers || answers, // ✅ Use scored answers
             cvData: useInterviewStore.getState().cvData,
+
             cvFile: useInterviewStore.getState().cvFile,
-            accessSecret: candidate.accessSecret, // SECURITY: Send secret back for validation
+            accessSecret: candidate.accessSecret,
             evaluation: {
               ...evalResult,
               scores: {
                 behavior: evalResult.behavior_score,
                 attitude: evalResult.attitude_score,
                 personality: evalResult.personality_score
-              }
-            }
+              },
+              mcq_score: evalResult.mcq_score,
+              gap_analysis: evalResult.gap_analysis || ''
+            },
+            // ✅ Integrity data
+            cheatAttempts,
+            integrityScore,
           };
-          
+
           const submitRes = await api.patch(`/public/applicants/${candidate.applicantId}/submit`, mappedData);
           console.log('Application submitted successfully:', submitRes.data);
         } catch (error) {
-          console.error("Failed to submit application:", error.response?.data || error.message);
+          console.error('Failed to submit application:', error.response?.data || error.message);
         }
       } else if (!candidate.applicantId) {
-        console.error("CRITICAL: Candidate ID is missing. Cannot save results.");
+        console.error('CRITICAL: Candidate ID is missing. Cannot save results.');
       }
 
       setLoading(false);
     };
-    
+
     fetchEvaluation();
-  }, [answers, evaluation, setEvaluation, candidate, generatedQuestions]);
+  }, [answers, evaluation, setEvaluation, candidate, generatedQuestions, correctAnswers, cheatAttempts]);
+
 
   const getStatusColor = (score) => {
     if (score >= 80) return 'var(--color-success)';

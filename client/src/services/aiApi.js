@@ -1,10 +1,10 @@
 /**
  * AI Evaluation Service (Google Gemini Integration)
  * TalentFlow - HR Platform
- * v3.0 — Dynamic System Prompt + Safety Settings + Structured Context
+ * v4.0 — MCQ + T/F + Essay + JD Generator + Gap Analysis
  */
 
-// ─── System Prompt Cache (loaded once per session) ────────────────────────────
+// ─── System Prompt Cache ───────────────────────────────────────────────────────
 let _cachedSystemPrompt = null;
 let _cachedModel = 'gemini-2.0-flash';
 
@@ -19,20 +19,18 @@ const getSystemSettings = async () => {
       _cachedModel = data.model || 'gemini-2.0-flash';
     }
   } catch (e) {
-    console.warn('Could not fetch AI settings from server, using defaults.');
+    console.warn('Could not fetch AI settings, using defaults.');
   }
-  // Fallback default
   if (!_cachedSystemPrompt) {
-    _cachedSystemPrompt = `أنت الخبير الرائد (Senior HR Director) في منصة TalentFlow، تمتلك خبرة دولية تزيد عن 50 عاماً في إدارة الموارد البشرية والتوظيف. أنت استشاري إداري محنك يتميز بالفراسة والموضوعية المطلقة. مهامك: تحليل السير الذاتية، توليد أسئلة STAR Method ذكية، وتقييم الإجابات بدقة جراحية.`;
+    _cachedSystemPrompt = `أنت الخبير الرائد (Senior HR Director) في منصة TalentFlow، تمتلك خبرة دولية تزيد عن 50 عاماً في إدارة الموارد البشرية والتوظيف. أنت استشاري إداري محنك يتميز بالفراسة والموضوعية المطلقة. مهامك: تحليل السير الذاتية، توليد أسئلة ذكية، وتقييم الإجابات بدقة جراحية.`;
     _cachedModel = 'gemini-2.0-flash';
   }
   return { systemPrompt: _cachedSystemPrompt, model: _cachedModel };
 };
 
-// Force refresh the cache (called after owner updates settings)
 export const refreshAiSettings = () => { _cachedSystemPrompt = null; };
 
-// ─── Safety Settings (Gemini Safety Filters) ─────────────────────────────────
+// ─── Safety Settings ──────────────────────────────────────────────────────────
 const SAFETY_SETTINGS = [
   { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
   { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -41,18 +39,8 @@ const SAFETY_SETTINGS = [
 ];
 
 // ─── Core Gemini Caller ───────────────────────────────────────────────────────
-const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5, contextVars = {}) => {
+const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) => {
   const { systemPrompt, model } = await getSystemSettings();
-
-  // Build structured prompt with context variables if provided
-  let fullPrompt = prompt;
-  if (contextVars && Object.keys(contextVars).length > 0) {
-    const contextBlock = Object.entries(contextVars)
-      .map(([k, v]) => `[${k.toUpperCase()}]: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-      .join('\n');
-    fullPrompt = `${contextBlock}\n\n---\n\n${prompt}`;
-  }
-
   const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const response = await fetch(GEMINI_URL, {
@@ -60,11 +48,11 @@ const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5, co
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ parts: [{ text: fullPrompt }] }],
+      contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature,
         topP: 0.9,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
       },
       safetySettings: SAFETY_SETTINGS,
@@ -80,8 +68,7 @@ const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5, co
   return jsonMode ? JSON.parse(raw) : raw;
 };
 
-
-// Extract real text from PDF file using pdfjs-dist
+// ─── Extract PDF Text ─────────────────────────────────────────────────────────
 const extractPdfText = async (file) => {
   try {
     const pdfjsLib = await import('pdfjs-dist');
@@ -89,28 +76,26 @@ const extractPdfText = async (file) => {
       'pdfjs-dist/build/pdf.worker.min.mjs',
       import.meta.url
     ).toString();
-
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
     for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const pageText = content.items.map(item => item.str).join(' ');
-      fullText += pageText + '\n';
+      fullText += content.items.map(item => item.str).join(' ') + '\n';
     }
-    return fullText.trim().slice(0, 6000); // Limit to avoid token overflow
+    return fullText.trim().slice(0, 6000);
   } catch (err) {
-    console.warn('PDF extraction failed, using file metadata:', err.message);
+    console.warn('PDF extraction failed:', err.message);
     return null;
   }
 };
 
+// ─── CV Analysis ──────────────────────────────────────────────────────────────
 export const analyzeCv = async (file) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  // Try to extract real text from PDF
   let pdfText = null;
   if (file.type === 'application/pdf') {
     pdfText = await extractPdfText(file);
@@ -118,22 +103,21 @@ export const analyzeCv = async (file) => {
 
   const contentDescription = pdfText
     ? `Full CV Text Content:\n---\n${pdfText}\n---`
-    : `File Name: "${file.name}", File Size: ${(file.size / 1024).toFixed(1)} KB, File Type: ${file.type}`;
+    : `File Name: "${file.name}", File Size: ${(file.size / 1024).toFixed(1)} KB`;
 
-  const prompt = `You are an expert CV parser and HR analyst for TalentFlow (AI-driven recruitment platform).
-Analyze this job application carefully:
+  const prompt = `You are an expert CV parser for TalentFlow AI recruitment platform.
+Analyze this CV carefully:
 
 ${contentDescription}
 
-Extract and generate a structured candidate profile based on the content above.
-Return a JSON object with these EXACT keys:
+Return a JSON object with EXACT keys:
 {
-  "summary": "A 2-3 sentence professional summary highlighting the candidate's most relevant experience and key value proposition",
+  "summary": "2-3 sentence professional summary",
   "skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
   "experience_years": <integer 0-30>,
-  "education": "Highest degree and field of study",
-  "technical_match": <integer 0-100, based on relevance to the applied job role>,
-  "is_fit_for_interview": <true if technical_match >= 40, false otherwise>
+  "education": "Highest degree and field",
+  "technical_match": <integer 0-100>,
+  "is_fit_for_interview": <true if technical_match >= 40>
 }`;
 
   try {
@@ -144,370 +128,393 @@ Return a JSON object with these EXACT keys:
   }
 };
 
-// Role-specific question blueprints to guide the AI
-const ROLE_BLUEPRINTS = {
-
-  ar: {
-    default: `
-- 4 أسئلة تقنية تتعلق بمهام العمل اليومية الحقيقية لهذه الوظيفة (ليست عامة)
-- 2 سؤال عن حوادث أو مشاكل فعلية واجهتها في العمل وكيف تعاملت معها
-- 2 سؤال عن السلامة والتعامل مع زملاء أو مدراء في بيئة عمل صعبة
-- 2 سؤال يختبر شخصيتك ومدى التزامك وقدرتك على تحمل المسؤولية`,
-  },
-  en: {
-    default: `
-- 4 technical questions directly tied to real daily tasks of a "${'{jobTitle'}" (NOT generic)
-- 2 situational questions about real problems/incidents this role faces
-- 2 questions about safety culture and teamwork under operational pressure
-- 2 personality questions testing accountability, punctuality, and self-driven learning`,
-  },
-};
-
-const getBlueprintForRole = (jobTitle, lang) => {
-  const blueprints = ROLE_BLUEPRINTS[lang === 'ar' ? 'ar' : 'en'];
-  return blueprints.default.replace('{jobTitle}', jobTitle);
-};
-
-export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10) => {
+// ─── ✅ NEW: Generate Job Description ─────────────────────────────────────────
+export const generateJD = async (jobTitle, department = '') => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("No Gemini API key. Using custom bank + fallback.");
-    return generateFallbackQuestions(customBank, targetCount, language);
-  }
+  if (!apiKey) return '';
 
-  // Calculate how many AI questions we need to fill the gap
-  const customCount = customBank.length;
-  const needed = Math.max(0, targetCount - customCount);
+  const prompt = `You are a senior HR consultant writing a professional Job Description for TalentFlow recruitment platform.
 
-  // If we already have enough custom questions, just return them formatted
-  if (needed === 0) {
-    return customBank.slice(0, targetCount).map(q => ({
-      question: typeof q === 'string' ? q : (q.text || q.question),
-      category: q.category || 'Technical',
-      weight: q.weight || 1
-    }));
-  }
+Write a comprehensive, professional Job Description for the following role:
+- Job Title: "${jobTitle}"
+- Department: "${department || 'General'}"
 
-  const isArabic = language === 'ar';
-  const blueprint = getBlueprintForRole(jobTitle, language);
-  const cvContext = cvData
-    ? `\nCANDIDATE CV DATA:\nSummary: "${cvData.summary}"\nSkills: ${cvData.skills?.join(', ')}.\nYears of Experience: ${cvData.experience_years}`
-    : '';
+The JD should include:
+1. Role Overview (2-3 sentences)
+2. Key Responsibilities (5-7 bullet points)
+3. Required Qualifications (4-5 points)
+4. Preferred Skills (3-4 points)
 
-  const prompt = isArabic ? `
-أنت محاور تقني خبير في منصة TalentFlow.
-مهمتك: توليد بالضبط ${needed} أسئلة مقابلة ذكية لوظيفة: "${jobTitle}".
-هذه الأسئلة ستكمل مجموعة الأسئلة المخصصة لتصل إلى إجمالي ${targetCount} أسئلة.
-
-سياق المرشح (بناءً على الـ CV):
-${cvContext}
-
-قواعد توليد الـ ${needed} أسئلة:
-1. يجب أن تكون الأسئلة باللغة العربية.
-2. اجعل الأسئلة تدمج بين متطلبات الوظيفة وخبرات المرشح المذكورة أعلاه.
-3. التوزيع المقترح للفئات:
-${blueprint}
-
-المخرجات المطلوبة:
-أخرج JSON array فقط يحتوي على بالضبط ${needed} كائنات بهذا الشكل:
-[{"question": "نص السؤال هنا", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]` 
-  : `
-You are a senior technical recruiter at TalentFlow.
-Your task: Generate exactly ${needed} intelligent interview questions for the role: "${jobTitle}".
-These questions will complement existing custom questions to reach a total of ${targetCount}.
-
-CANDIDATE CONTEXT (From CV):
-${cvContext}
-
-RULES for generating the ${needed} questions:
-1. Questions MUST be in English.
-2. Tailor questions based on the job title and the candidate's CV context provided above.
-3. Category distribution guidelines:
-${blueprint}
-
-OUTPUT FORMAT:
-Return ONLY a JSON array of exactly ${needed} objects:
-[{"question": "Question text here", "category": "Technical|Behavioral|Attitude|Hybrid", "weight": 1.0}, ...]`;
+Keep it concise, professional, and relevant to the role.
+Write in the same language as the job title (Arabic if Arabic title, English if English title).
+Return as plain text only — no markdown, no JSON.`;
 
   try {
-    const aiResult = await callGemini(apiKey, prompt, true, 0.7);
-    let aiQuestions = [];
-    
-    if (Array.isArray(aiResult)) {
-      aiQuestions = aiResult;
-    } else if (aiResult && typeof aiResult === 'object') {
-      // Handle cases where AI returns { "questions": [...] } or similar
-      aiQuestions = Object.values(aiResult).find(v => Array.isArray(v)) || [];
-    }
-
-    // Format Custom Questions
-    const formattedCustom = customBank.map(q => ({
-      question: typeof q === 'string' ? q : (q.text || q.question),
-      category: q.category || 'Technical',
-      weight: q.weight || 1
-    }));
-
-    // Format AI Questions
-    const formattedAi = aiQuestions.map(q => ({
-      question: typeof q === 'string' ? q : (q.question || q.text),
-      category: q.category || 'Technical',
-      weight: q.weight || 1
-    }));
-
-    // Merge: Custom first, then AI
-    let merged = [...formattedCustom, ...formattedAi];
-    
-    // Final check & padding if needed
-    if (merged.length < targetCount) {
-      const paddingNeeded = targetCount - merged.length;
-      const staticPadding = getStaticFallback(language, paddingNeeded, merged.map(q => q.question));
-      merged = [...merged, ...staticPadding];
-    }
-
-    return merged.slice(0, targetCount);
-    
+    return await callGemini(apiKey, prompt, false, 0.6);
   } catch (error) {
-    console.error('Gemini Question Generation Error:', error);
-    return generateFallbackQuestions(customBank, targetCount, language);
+    console.error('JD Generation Error:', error);
+    return '';
   }
 };
 
-// Helper for comprehensive fallback
+// ─── ✅ REBUILT: Generate Structured Questions (MCQ + T/F + Essay) ─────────────
+/**
+ * Generates 10 personalized questions based on JD + CV.
+ * Returns: { questions: [...], correctAnswers: { index: answer } }
+ *
+ * Question format:
+ * - type: 'truefalse' | 'mcq' | 'essay'
+ * - question: string
+ * - choices: string[] (for MCQ only — 4 options)
+ * - correctAnswer: string (for MCQ/T-F — stored in correctAnswers map, NOT shown to candidate)
+ * - category: string
+ * - weight: number
+ */
+export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10, jobDescription = '') => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.warn('No Gemini API key. Using custom bank + fallback.');
+    return { questions: buildFallbackQuestions(customBank, targetCount, language), correctAnswers: {} };
+  }
+
+  const isAr = language === 'ar';
+  const cvContext = cvData
+    ? `\nCANDIDATE CV:\nSummary: "${cvData.summary}"\nSkills: ${cvData.skills?.join(', ')}\nExperience: ${cvData.experience_years} years`
+    : '';
+  const jdContext = jobDescription
+    ? `\nJOB DESCRIPTION:\n${jobDescription.slice(0, 1500)}`
+    : '';
+
+  // Custom questions count (always essay type)
+  const customCount = Math.min(customBank.length, targetCount);
+  // AI fills the rest: always generate 10 structured questions (3 T/F + 4 MCQ + 3 Essay)
+  const aiCount = Math.max(0, targetCount - customCount);
+
+  // Build structured request
+  const structuredPrompt = isAr ? `
+أنت محاور ذكاء اصطناعي متخصص في التوظيف لمنصة TalentFlow.
+مهمتك: توليد بالضبط ${aiCount} سؤال مقابلة مخصص لهذا المتقدم.
+
+الوظيفة: "${jobTitle}"
+${jdContext}
+${cvContext}
+
+يجب أن تكون الأسئلة موزعة هكذا (بالنسب الأقرب لـ ${aiCount} أسئلة):
+- 30% أسئلة صح أو غلط (truefalse)
+- 40% أسئلة اختيار من متعدد (mcq) مع 4 خيارات واضحة
+- 30% أسئلة مقالية (essay) تقيس التفكير
+
+القواعد:
+1. الأسئلة باللغة العربية
+2. مخصصة لهذا المتقدم بناءً على الـ CV والـ JD
+3. الأسئلة التقنية يجب أن تختبر مهارات حقيقية وليست عامة
+
+أخرج JSON array فقط بهذا الشكل:
+[{
+  "type": "truefalse",
+  "question": "نص السؤال",
+  "correctAnswer": "true أو false",
+  "category": "Technical",
+  "weight": 1
+}, {
+  "type": "mcq",
+  "question": "نص السؤال",
+  "choices": ["الخيار أ", "الخيار ب", "الخيار ج", "الخيار د"],
+  "correctAnswer": "الخيار الصحيح كما هو مكتوب في choices",
+  "category": "Technical",
+  "weight": 1.2
+}, {
+  "type": "essay",
+  "question": "نص السؤال المقالي",
+  "category": "Behavioral",
+  "weight": 1
+}]`
+  : `
+You are an AI interviewer for TalentFlow recruitment platform.
+Task: Generate exactly ${aiCount} personalized interview questions for this candidate.
+
+Job Title: "${jobTitle}"
+${jdContext}
+${cvContext}
+
+Distribute questions as follows (closest distribution for ${aiCount} questions):
+- 30% True/False questions (truefalse)
+- 40% Multiple Choice questions (mcq) with 4 clear answer choices
+- 30% Essay questions (essay) testing depth of thought
+
+Rules:
+1. Questions MUST be in English
+2. Personalize based on the candidate's CV and the Job Description
+3. Technical questions must test real, specific skills — NOT generic questions
+
+Return ONLY a JSON array in this format:
+[{
+  "type": "truefalse",
+  "question": "Question text",
+  "correctAnswer": "true or false",
+  "category": "Technical",
+  "weight": 1
+}, {
+  "type": "mcq",
+  "question": "Question text",
+  "choices": ["Option A", "Option B", "Option C", "Option D"],
+  "correctAnswer": "The exact correct option text as written in choices",
+  "category": "Technical",
+  "weight": 1.2
+}, {
+  "type": "essay",
+  "question": "Open-ended question",
+  "category": "Behavioral",
+  "weight": 1
+}]`;
+
+  try {
+    const aiResult = await callGemini(apiKey, structuredPrompt, true, 0.7);
+    let aiQuestions = Array.isArray(aiResult) ? aiResult
+      : (Array.isArray(aiResult?.questions) ? aiResult.questions
+        : Object.values(aiResult).find(v => Array.isArray(v)) || []);
+
+    // Build correct answers map (index → answer) — never exposed to UI directly
+    const correctAnswers = {};
+
+    // Format custom questions (always essay)
+    const formattedCustom = customBank.slice(0, customCount).map((q, i) => ({
+      type: 'essay',
+      question: typeof q === 'string' ? q : (q.text || q.question || ''),
+      category: q.category || 'Technical',
+      weight: q.weight || 1,
+    }));
+
+    // Format AI questions + extract correct answers
+    const formattedAi = aiQuestions.slice(0, aiCount).map((q, i) => {
+      const globalIndex = formattedCustom.length + i;
+      if (q.correctAnswer !== undefined && q.correctAnswer !== null) {
+        correctAnswers[globalIndex] = String(q.correctAnswer);
+      }
+      return {
+        type: q.type || 'essay',
+        question: q.question || q.text || '',
+        choices: q.choices || [],
+        category: q.category || 'Technical',
+        weight: q.weight || (q.type === 'mcq' ? 1.2 : 1),
+      };
+    });
+
+    let merged = [...formattedCustom, ...formattedAi];
+
+    // Pad with fallbacks if needed
+    if (merged.length < targetCount) {
+      const padding = getStaticFallback(language, targetCount - merged.length, merged.map(q => q.question));
+      merged = [...merged, ...padding];
+    }
+
+    return { questions: merged.slice(0, targetCount), correctAnswers };
+
+  } catch (error) {
+    console.error('Gemini Question Generation Error:', error);
+    return {
+      questions: buildFallbackQuestions(customBank, targetCount, language),
+      correctAnswers: {}
+    };
+  }
+};
+
+// ─── Fallback helpers ─────────────────────────────────────────────────────────
 const getStaticFallback = (lang, count, existingQuestions = []) => {
-  const isArabic = lang === 'ar';
-  const pool = isArabic ? [
-    "أخبرنا عن أكبر تحدي واجهته في عملك السابق وكيف تعاملت معه؟",
-    "كيف تدير وقتك عندما يكون لديك مهام متعددة ذات مواعيد نهائية ضيقة؟",
-    "لماذا تعتقد أنك المرشح الأنسب لهذه الوظيفة بالتحديد؟",
-    "حدثنا عن موقف اضطررت فيه للتعامل مع زميل صعب في العمل.",
-    "ما هي طموحاتك المهنية للخمس سنوات القادمة؟",
-    "كيف تحافظ على مستوى أدائك تحت ضغط العمل المستمر؟",
-    "صف موقفاً اتخذت فيه مبادرة لتحسين سير العمل في شركتك السابقة.",
-    "ما هي أهم مهارة تقنية اكتسبتها مؤخراً وكيف طبقتها؟",
-    "كيف تتعامل مع التغييرات المفاجئة في خطط العمل أو الأولويات؟",
-    "ماذا تفعل إذا اكتشفت خطأً كبيراً ارتكبه أحد زملائك؟",
-    "حدثنا عن مشروع تفتخر بإنجازه والتحديات التي واجهتك فيه.",
-    "كيف تضمن جودة عملك وتتجنب الأخطاء المتكررة؟"
+  const isAr = lang === 'ar';
+  const pool = isAr ? [
+    'أخبرنا عن أكبر تحدي واجهته في عملك السابق وكيف تعاملت معه؟',
+    'كيف تدير وقتك عندما يكون لديك مهام متعددة ذات مواعيد ضيقة؟',
+    'لماذا تعتقد أنك المرشح الأنسب لهذه الوظيفة؟',
+    'حدثنا عن موقف اضطررت فيه للتعامل مع زميل صعب.',
+    'ما هي طموحاتك المهنية للخمس سنوات القادمة؟',
+    'كيف تحافظ على مستوى أدائك تحت ضغط العمل؟',
+    'صف موقفاً اتخذت فيه مبادرة لتحسين سير العمل.',
+    'ما هي أهم مهارة تقنية اكتسبتها مؤخراً وكيف طبقتها؟',
   ] : [
-    "Tell us about the biggest challenge you faced in your previous job and how you handled it?",
-    "How do you manage your time when you have multiple tasks with tight deadlines?",
-    "Why do you think you are the best fit for this specific position?",
-    "Tell us about a time you had to deal with a difficult colleague.",
-    "What are your career goals for the next five years?",
-    "How do you maintain your performance level under continuous work pressure?",
-    "Describe a situation where you took the initiative to improve workflow in your previous company.",
-    "What is the most important technical skill you've recently acquired and how did you apply it?",
-    "How do you handle sudden changes in work plans or priorities?",
-    "What would you do if you discovered a major mistake made by one of your colleagues?",
-    "Tell us about a project you're proud of and the challenges you faced.",
-    "How do you ensure the quality of your work and avoid repetitive mistakes?"
+    'Tell us about the biggest challenge you faced and how you handled it.',
+    'How do you manage your time when you have multiple tasks with tight deadlines?',
+    'Why do you think you are the best fit for this position?',
+    'Tell us about a time you had to deal with a difficult colleague.',
+    'What are your career goals for the next five years?',
+    'How do you maintain your performance level under work pressure?',
+    'Describe a situation where you took initiative to improve workflow.',
+    'What is the most important technical skill you recently acquired?',
   ];
 
   const result = [];
-  let i = 0;
-  while (result.length < count && i < pool.length) {
-    if (!existingQuestions.includes(pool[i])) {
-      result.push({ question: pool[i], category: 'General', weight: 1 });
+  pool.forEach(q => {
+    if (result.length < count && !existingQuestions.includes(q)) {
+      result.push({ type: 'essay', question: q, category: 'General', weight: 1 });
     }
-    i++;
-  }
-  
-  // Last resort: if pool is exhausted
+  });
   while (result.length < count) {
-    result.push({ 
-      question: isArabic ? "ما هي أهم إنجازاتك المهنية؟" : "What is your greatest professional achievement?", 
-      category: 'General', 
-      weight: 1 
+    result.push({
+      type: 'essay',
+      question: isAr ? 'ما هي أهم إنجازاتك المهنية؟' : 'What is your greatest professional achievement?',
+      category: 'General', weight: 1
     });
   }
-  
   return result;
 };
 
-const generateFallbackQuestions = (customBank, targetCount, language) => {
-  const formattedCustom = customBank.map(q => ({
-    question: typeof q === 'string' ? q : (q.text || q.question),
+const buildFallbackQuestions = (customBank, targetCount, language) => {
+  const formatted = customBank.map(q => ({
+    type: 'essay',
+    question: typeof q === 'string' ? q : (q.text || q.question || ''),
     category: q.category || 'Technical',
-    weight: q.weight || 1
+    weight: q.weight || 1,
+    choices: [],
   }));
-  
-  const paddingNeeded = Math.max(0, targetCount - formattedCustom.length);
-  const padding = getStaticFallback(language, paddingNeeded, formattedCustom.map(q => q.question));
-  
-  return [...formattedCustom, ...padding].slice(0, targetCount);
+  const padding = getStaticFallback(language, Math.max(0, targetCount - formatted.length), formatted.map(q => q.question));
+  return [...formatted, ...padding].slice(0, targetCount);
 };
 
-
-
-
-export const evaluateInterview = async (answers, jobTitle = "Candidate", questionCategories = []) => {
+// ─── ✅ UPDATED: Evaluate Interview (MCQ auto-score + Essay AI + Gap Analysis) ─
+/**
+ * @param {Array} answers - all candidate answers
+ * @param {string} jobTitle
+ * @param {Array} questionCategories
+ * @param {Object} correctAnswers - { index: correctAnswer } map
+ * @param {Object} cvData - for gap analysis
+ * @param {string} jobDescription - for gap analysis
+ */
+export const evaluateInterview = async (
+  answers,
+  jobTitle = 'Candidate',
+  questionCategories = [],
+  correctAnswers = {},
+  cvData = null,
+  jobDescription = ''
+) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
+  // ── Step 1: Auto-score MCQ and T/F ──
+  let mcqCorrect = 0;
+  let mcqTotal = 0;
+  const scoredAnswers = answers.map((a, i) => {
+    if (a.type === 'mcq' || a.type === 'truefalse') {
+      mcqTotal++;
+      const expected = correctAnswers[i];
+      const given = String(a.answer || '').trim().toLowerCase();
+      const correct = String(expected || '').trim().toLowerCase();
+      const isCorrect = given === correct || given.includes(correct) || correct.includes(given);
+      if (isCorrect) mcqCorrect++;
+      return { ...a, isCorrect, score: isCorrect ? 10 : 0 };
+    }
+    return { ...a, isCorrect: null, score: null };
+  });
+
+  const mcqScore = mcqTotal > 0 ? Math.round((mcqCorrect / mcqTotal) * 40) : 0; // MCQ = 40% of total
+
+  // ── Step 2: AI evaluates essay questions only ──
+  const essayAnswers = scoredAnswers.filter(a => a.type === 'essay');
+
   if (!apiKey) {
-    console.warn("No Gemini API key found. Falling back to Mock Evaluation.");
-    return fallbackMockEvaluation(answers, questionCategories);
+    const fallback = fallbackMockEvaluation(answers, questionCategories);
+    return { ...fallback, mcq_score: mcqScore, mcqCorrect, mcqTotal };
   }
 
-  // Map answers with categories and weights
-  const formattedAnswers = answers.map((a, i) => {
-    const category = questionCategories[i] || 'Technical';
-    const weight = a.weight || 1;
-    return `[Question ${i + 1}] (${category}, Weight: ${weight}x): ${a.question}\n[Candidate Answer]: ${a.answer}`;
+  const formattedEssays = essayAnswers.map((a, i) => {
+    const category = questionCategories[answers.indexOf(a)] || 'Technical';
+    return `[Essay ${i + 1}] (${category}): ${a.question}\n[Answer]: ${a.answer}`;
   }).join('\n\n');
 
-  const prompt = `You are a Senior Industrial Psychologist and Technical Interview Auditor for TalentFlow AI recruitment platform. Your mission is to perform a rigorous, unbiased evaluation that distinguishes between genuine behavioral traits and diplomatic/canned responses.
+  const cvSkills = cvData?.skills?.join(', ') || '';
+  const prompt = `You are a Senior HR Director evaluating a candidate for "${jobTitle}".
 
-CRITICAL ANALYSIS FRAMEWORK:
+OBJECTIVE EVALUATION — Essay Questions Only (MCQ/T-F already auto-scored):
 
-### DISTINGUISHING AUTHENTIC vs DIPLOMATIC RESPONSES
-- **Authentic Responses**: Include specific details, concrete examples, measurable outcomes, and personal reflections. Show genuine problem-solving approaches and learning experiences.
-- **Diplomatic/Canned Responses**: Generic phrases like "I work well in teams," "I'm a hard worker," "I communicate effectively." Lack specific examples, timelines, or measurable results.
+${formattedEssays}
 
-### STAR METHOD ENFORCEMENT
-Every behavioral question MUST be evaluated on STAR method usage:
-- **Situation**: Did they describe the specific context/problem?
-- **Task**: Did they explain their specific responsibility?
-- **Action**: Did they detail the steps they took (not "we" but "I")?
-- **Result**: Did they provide measurable outcomes and lessons learned?
+CANDIDATE CV SKILLS: ${cvSkills}
+JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
 
-PENALIZE HEAVILY (subtract 3-5 points) for:
-- Not using STAR method in behavioral questions
-- Vague or generic answers
-- Diplomatic responses without examples
-- Answers that sound rehearsed or scripted
+SCORING RULES:
+- Score each essay 0-10 based on STAR method, depth, and relevance
+- Penalize generic or vague answers (-2 to -4 points)
+- Penalize gibberish/random text (score = 0)
+- Be strict: only 9-10 for truly impressive, detailed answers
 
-### QUESTION CATEGORY ANALYSIS
-**Technical Questions**: Evaluate depth of knowledge, problem-solving approach, and industry expertise.
-**Behavioral Questions**: Require complete STAR method. Penalize generic teamwork/safety answers.
-**Attitude Questions**: Look for genuine work ethic, accountability, and professional maturity.
-**Hybrid Questions**: Combine technical accuracy with behavioral demonstration.
-
-### SCORING SYSTEM (0-10 Rubric per question, weighted)
-- 0: Gibberish, random letters, "ok/yes/no", completely irrelevant.
-- 1-3: Poor, unprofessional, or generic response lacking any knowledge of the "${jobTitle}" role.
-- 4-6: Average, meets basic requirements but lacks depth or specific examples.
-- 7-8: Good, professional, shows solid experience and industry knowledge.
-- 9-10: Exceptional, highly detailed, demonstrates absolute mastery of the "${jobTitle}" role, leadership, and safety-first mindset.
-
-### WEIGHTED SCORING BY CATEGORY
-- Technical questions: Base score × weight (default 1.0)
-- Behavioral questions: Base score × weight (default 1.0) - focus on STAR method usage
-- Attitude questions: Base score × weight (default 1.0) - evaluate professionalism and work ethic
-- Hybrid questions: Base score × weight (default 1.2) - combined technical + behavioral assessment
-
-### CATEGORY MAPPING WITH WEIGHTS
-1. BEHAVIOR (Q1-Q3): Sum weighted scores, scale to 40 max
-2. ATTITUDE (Q4-Q6): Sum weighted scores, scale to 30 max  
-3. PERSONALITY (Q7-Q10): Sum weighted scores, scale to 30 max
-
-### MANDATORY RULES
-- If ANY answer is random typing (e.g., "asdasd", "hhhh", "123") -> Score 0 for that question.
-- Penalize diplomatic answers: Subtract 2 points for generic phrases.
-- Require STAR method for behavioral questions: -3 points if missing.
-- You MUST provide a clear "reasoning" for each score category.
-- Total score must be the mathematical sum of the three category scores.
-- Be extremely stingy with high scores. Only 80+ for truly impressive candidates.
-
-### OUTPUT FORMAT (Raw JSON only)
+MANDATORY OUTPUT (raw JSON only):
 {
-  "behavior_score": <number>,
-  "behavior_reasoning": "<short explanation in Arabic or English>",
-  "attitude_score": <number>,
-  "attitude_reasoning": "<short explanation in Arabic or English>",
-  "personality_score": <number>,
-  "personality_reasoning": "<short explanation in Arabic or English>",
-  "total_score": <number>,
+  "behavior_score": <0-40>,
+  "behavior_reasoning": "<explanation>",
+  "attitude_score": <0-30>,
+  "attitude_reasoning": "<explanation>",
+  "personality_score": <0-30>,
+  "personality_reasoning": "<explanation>",
+  "total_score": <sum of the three above>,
   "disc": { "d": <0-100>, "i": <0-100>, "s": <0-100>, "c": <0-100> },
-  "strengths": ["<strength 1>", "<strength 2>"],
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "weaknesses": ["<weakness 1>", "<weakness 2>"],
-  "recommendation": "<Strong Fit | Potential Fit | Not Fit | Invalid Answers>"
-}
-
-Candidate Answers:
-${formattedAnswers}`;
+  "recommendation": "<Strong Fit | Potential Fit | Not Fit | Invalid Answers>",
+  "gap_analysis": "<A smart 2-3 sentence paragraph about skills the candidate claimed in CV but showed weakness in the interview answers. Be specific. Write in the same language as answers.>"
+}`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1, // Near zero for maximum consistency
-            responseMimeType: "application/json",
-          }
-        })
-      }
-    );
+    const result = await callGemini(apiKey, prompt, true, 0.1);
+    // Blend MCQ score with essay evaluation
+    const blendedTotal = Math.min(100, Math.round(
+      (result.total_score * 0.6) + (mcqScore * 1.0)
+    ));
+    let recommendation = result.recommendation;
+    if (blendedTotal >= 80) recommendation = 'Strong Fit';
+    else if (blendedTotal >= 60) recommendation = 'Potential Fit';
+    else if (blendedTotal > 0) recommendation = 'Not Fit';
 
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    const result = JSON.parse(data.candidates[0].content.parts[0].text);
-    return result;
+    return {
+      ...result,
+      total_score: blendedTotal,
+      recommendation,
+      mcq_score: mcqScore,
+      essay_score: result.total_score,
+      mcqCorrect,
+      mcqTotal,
+      gap_analysis: result.gap_analysis || '',
+      answers: scoredAnswers // ✅ Return the answers with isCorrect flags
+    };
+
 
   } catch (error) {
-    console.error("Gemini AI Evaluation Error:", error);
-    return fallbackMockEvaluation(answers);
+    console.error('Gemini AI Evaluation Error:', error);
+    const fallback = fallbackMockEvaluation(answers, questionCategories);
+    return { ...fallback, mcq_score: mcqScore, mcqCorrect, mcqTotal };
   }
 };
 
-// ============ Gibberish Detection ============
+// ─── Gibberish Detection ──────────────────────────────────────────────────────
 const isGibberish = (text) => {
   if (!text || text.trim().length < 5) return true;
-  const trimmed = text.trim();
-  if (/^(.)\1{3,}$/i.test(trimmed)) return true;
-  if (trimmed.length > 5 && !/[aeiouAEIOUأإاوي\s]/i.test(trimmed)) return true;
-  if (/^\d+$/.test(trimmed)) return true;
-  if (trimmed.split(/\s+/).length < 3 && trimmed.length < 15) return true;
+  const t = text.trim();
+  if (/^(.)\1{3,}$/i.test(t)) return true;
+  if (t.length > 5 && !/[aeiouAEIOUأإاوي\s]/i.test(t)) return true;
+  if (/^\d+$/.test(t)) return true;
   return false;
 };
 
-// ============ Fallback Mock Evaluation ============
+// ─── Fallback Mock Evaluation ─────────────────────────────────────────────────
 const fallbackMockEvaluation = (answers, questionCategories = []) => {
-  const scoreAnswer = (text, category = 'Technical', weight = 1) => {
+  const score = (text, cat = 'Technical', w = 1) => {
     if (isGibberish(text)) return 0;
-    const lower = text.toLowerCase();
-    let score = 4;
-    if (text.length > 40) score += 2;
-    if (text.length > 100) score += 2;
-    if (text.length > 200) score += 2;
-    
-    const keywords = ['team', 'safety', 'plan', 'resolve', 'communicate', 'listen', 'focus', 'accuracy', 'quality', 'schedule', 'manage', 'lead', 'inspect', 'test', 'report', 'حل', 'فريق', 'سلامة', 'جودة', 'استمع', 'مشكلة', 'مدير', 'عمل', 'فحص', 'تقرير', 'خطة'];
-    let hits = 0;
-    keywords.forEach(kw => { if (lower.includes(kw)) hits++; });
-    score += Math.min(hits * 1.5, 4);
-    
-    // Apply category bonus
-    if (category === 'Behavioral' && (lower.includes('situation') || lower.includes('task') || lower.includes('action') || lower.includes('result'))) {
-      score += 1; // STAR method bonus
-    }
-    
-    return Math.min(Math.round(score * weight), 10);
+    let s = 4;
+    if (text.length > 40) s += 2;
+    if (text.length > 100) s += 2;
+    if (text.length > 200) s += 2;
+    return Math.min(Math.round(s * w), 10);
   };
 
   const padded = [...answers];
-  while (padded.length < 10) padded.push({ answer: '', category: 'Technical', weight: 1 });
+  while (padded.length < 10) padded.push({ answer: '', category: 'Technical', weight: 1, type: 'essay' });
 
-  const bScores = [scoreAnswer(padded[0].answer, questionCategories[0], padded[0].weight), 
-                   scoreAnswer(padded[1].answer, questionCategories[1], padded[1].weight), 
-                   scoreAnswer(padded[2].answer, questionCategories[2], padded[2].weight)];
-  const aScores = [scoreAnswer(padded[3].answer, questionCategories[3], padded[3].weight), 
-                   scoreAnswer(padded[4].answer, questionCategories[4], padded[4].weight), 
-                   scoreAnswer(padded[5].answer, questionCategories[5], padded[5].weight)];
-  const pScores = [scoreAnswer(padded[6].answer, questionCategories[6], padded[6].weight), 
-                   scoreAnswer(padded[7].answer, questionCategories[7], padded[7].weight), 
-                   scoreAnswer(padded[8].answer, questionCategories[8], padded[8].weight), 
-                   scoreAnswer(padded[9].answer, questionCategories[9], padded[9].weight)];
+  const bRaw = [0, 1, 2].reduce((s, i) => s + score(padded[i].answer, questionCategories[i], padded[i].weight), 0);
+  const aRaw = [3, 4, 5].reduce((s, i) => s + score(padded[i].answer, questionCategories[i], padded[i].weight), 0);
+  const pRaw = [6, 7, 8, 9].reduce((s, i) => s + score(padded[i].answer, questionCategories[i], padded[i].weight), 0);
 
-  const bRaw = bScores.reduce((a, b) => a + b, 0);
-  const aRaw = aScores.reduce((a, b) => a + b, 0);
-  const pRaw = pScores.reduce((a, b) => a + b, 0);
-
-  const behavior_score = bRaw === 0 ? 0 : Math.min(40, Math.round((bRaw / 30) * 40));
-  const attitude_score = aRaw === 0 ? 0 : Math.min(30, Math.round((aRaw / 30) * 30));
-  const personality_score = pRaw === 0 ? 0 : Math.min(30, Math.round((pRaw / 40) * 30));
+  const behavior_score = Math.min(40, Math.round((bRaw / 30) * 40));
+  const attitude_score = Math.min(30, Math.round((aRaw / 30) * 30));
+  const personality_score = Math.min(30, Math.round((pRaw / 40) * 30));
   const total_score = behavior_score + attitude_score + personality_score;
 
   let recommendation = 'Not Fit';
@@ -515,19 +522,14 @@ const fallbackMockEvaluation = (answers, questionCategories = []) => {
   else if (total_score >= 80) recommendation = 'Strong Fit';
   else if (total_score >= 60) recommendation = 'Potential Fit';
 
-  const disc = {
-    d: pScores[0] === 0 ? 0 : Math.min(100, pScores[0] * 10 + 10),
-    i: pScores[1] === 0 ? 0 : Math.min(100, pScores[1] * 10 + 5),
-    s: pScores[2] === 0 ? 0 : Math.min(100, pScores[2] * 10 + 15),
-    c: pScores[3] === 0 ? 0 : Math.min(100, pScores[3] * 10 + 20),
-  };
-
-  const validCount = [...bScores, ...aScores, ...pScores].filter(s => s > 0).length;
-
   return {
-    behavior_score, attitude_score, personality_score, total_score, disc,
-    strengths: validCount === 0 ? [] : ['Adequate technical awareness', 'Responsive to structured questions'],
-    weaknesses: validCount === 0 ? ['All answers were invalid or random text.'] : ['Answers lacked depth', 'Consider providing real-world examples'],
-    recommendation
+    behavior_score, behavior_reasoning: 'Auto-evaluated',
+    attitude_score, attitude_reasoning: 'Auto-evaluated',
+    personality_score, personality_reasoning: 'Auto-evaluated',
+    total_score, recommendation,
+    disc: { d: 50, i: 50, s: 50, c: 50 },
+    strengths: ['Completed the interview', 'Responsive'],
+    weaknesses: ['Answers lacked depth', 'Consider specific examples'],
+    gap_analysis: ''
   };
 };

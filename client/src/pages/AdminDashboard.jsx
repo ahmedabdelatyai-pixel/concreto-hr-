@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminStore } from '../store/adminStore';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
 import api from '../services/api';
+import { generateJD } from '../services/aiApi';
+
 
 function AdminDashboard() {
-  const navigate = useNavigate();
   const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
+  const navigate = useNavigate();
+  
   const t = (en, ar) => isAr ? ar : en;
   const reportRef = useRef(null);
   
@@ -40,14 +42,17 @@ function AdminDashboard() {
     title_en: '', 
     title_ar: '', 
     department: '',
+    description: '',   // ✅ JD field
     questionCount: 10,
     customQuestions: [] 
   });
   const [questionInput, setQuestionInput] = useState({ text: '', category: 'Technical' });
+  const [jdGenerating, setJdGenerating] = useState(false); // ✅ AI JD helper state
   const [serverStatus, setServerStatus] = useState('checking');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterJob, setFilterJob] = useState('all');
+
 
   useEffect(() => {
     const checkServer = async () => {
@@ -114,8 +119,13 @@ function AdminDashboard() {
   const handleAddJob = async (e) => {
     e.preventDefault();
     try {
-      // Auto-add any pending question text in the input
-      let jobToSave = { 
+      // Validate required JD
+      if (!newJob.description?.trim()) {
+        alert(isAr ? 'الوصف الوظيفي مطلوب. استخدم زر "مساعد الـ AI" إذا احتجت مساعدة.' : 'Job Description is required. Use the "AI JD Helper" button if needed.');
+        return;
+      }
+
+      let jobToSave = {
         ...newJob,
         questionCount: parseInt(newJob.questionCount) || 10
       };
@@ -128,8 +138,8 @@ function AdminDashboard() {
       } else {
         await addJob(jobToSave);
       }
-      
-      setNewJob({ title_en: '', title_ar: '', department: '', questionCount: 10, customQuestions: [] });
+
+      setNewJob({ title_en: '', title_ar: '', department: '', description: '', questionCount: 10, customQuestions: [] });
       setQuestionInput({ text: '', category: 'Technical' });
       setShowAddJob(false);
       setEditingJob(null);
@@ -139,19 +149,38 @@ function AdminDashboard() {
     }
   };
 
+
   const handleEditJob = (job) => {
     setEditingJob(job);
     setNewJob({
       title_en: job.title_en,
       title_ar: job.title_ar,
       department: job.department,
+      description: job.description || job.description_en || '',  // ✅
       questionCount: job.questionCount || 10,
       customQuestions: [...(job.customQuestions || [])]
     });
     setShowAddJob(true);
-    // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // ✅ AI JD Helper
+  const handleGenerateJD = async () => {
+    const title = newJob.title_en || newJob.title_ar;
+    if (!title) {
+      alert(isAr ? 'يرجى كتابة مسمى الوظيفة أولاً' : 'Please enter the job title first.');
+      return;
+    }
+    setJdGenerating(true);
+    try {
+      const jd = await generateJD(title, newJob.department);
+      if (jd) setNewJob(prev => ({ ...prev, description: jd }));
+    } catch (e) {
+      alert(isAr ? 'فشل توليد الوصف الوظيفي' : 'Failed to generate JD');
+    }
+    setJdGenerating(false);
+  };
+
 
   const addQuestionToNewJob = () => {
     if (!questionInput.text) return;
@@ -475,9 +504,46 @@ function AdminDashboard() {
                     </div>
                   </div>
 
+                  {/* ✅ JD Field + AI Helper */}
+                  <div className="form-group" style={{ marginTop: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        📝 {t('Job Description (Required)', 'الوصف الوظيفي (إلزامي)')}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateJD}
+                        disabled={jdGenerating}
+                        style={{
+                          padding: '0.3rem 0.9rem', fontSize: '0.78rem', fontWeight: '700',
+                          background: jdGenerating ? 'rgba(252,163,17,0.1)' : 'linear-gradient(135deg, #fca311, #f97316)',
+                          border: 'none', borderRadius: '6px', color: jdGenerating ? '#fca311' : '#000',
+                          cursor: jdGenerating ? 'not-allowed' : 'pointer', transition: 'all 0.2s'
+                        }}
+                      >
+                        {jdGenerating ? '⏳ ...' : '✨ ' + t('AI JD Helper', 'مساعد الـ AI')}
+                      </button>
+                    </div>
+                    <textarea
+                      className="form-control"
+                      required
+                      rows={6}
+                      value={newJob.description}
+                      onChange={e => setNewJob({ ...newJob, description: e.target.value })}
+                      placeholder={isAr
+                        ? 'اكتب الوصف الوظيفي هنا، أو اضغط "مساعد الـ AI" ليكتبه لك تلقائياً...'
+                        : 'Write the job description here, or click "AI JD Helper" to auto-generate it...'}
+                      style={{ resize: 'vertical', fontSize: '0.88rem', lineHeight: '1.6' }}
+                    />
+                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem' }}>
+                      💡 {t('The AI uses this JD to generate personalized questions for each candidate.', 'الذكاء الاصطناعي يستخدم هذا الوصف لتوليد أسئلة مخصصة لكل متقدم.')}
+                    </div>
+                  </div>
+
                   {/* Question Bank Input */}
                   <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                     <label className="form-label">📚 {t('Add Custom Questions to Bank (Optional)', 'إضافة أسئلة مخصصة (اختياري)')}</label>
+
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                       <input 
                         type="text" className="form-control" placeholder={t('Enter question...', 'اكتب السؤال...')} 
@@ -562,13 +628,15 @@ function AdminDashboard() {
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
                             {[
-                              { name: 'LinkedIn', src: 'linkedin', icon: '🔵' },
-                              { name: 'WhatsApp', src: 'whatsapp', icon: '🟢' },
-                              { name: 'Facebook', src: 'facebook', icon: '💠' },
-                              { name: 'Direct', src: 'direct', icon: '🔗' }
+                            { name: 'LinkedIn',  src: 'linkedin',  icon: '🔵', medium: 'social' },
+                              { name: 'WhatsApp', src: 'whatsapp', icon: '🟢', medium: 'messaging' },
+                              { name: 'Facebook', src: 'facebook', icon: '💠', medium: 'social' },
+                              { name: 'Snapchat', src: 'snapchat', icon: '👻', medium: 'social' },
+                              { name: 'Direct',   src: 'direct',   icon: '🔗', medium: 'direct' }
                             ].map(source => {
-                              // Generate the direct apply link with jobId and source
-                              const applyLink = `${window.location.origin}/apply?jobId=${job._id}&src=${source.src}`;
+                              // UTM tracking link
+                              const applyLink = `${window.location.origin}/apply?jobId=${job._id}&utm_source=${source.src}&utm_medium=${source.medium}&utm_campaign=hiring`;
+
                               return (
                                 <div key={source.src} style={{ 
                                   display: 'flex', flexDirection: 'column', gap: '0.5rem', 
@@ -915,8 +983,10 @@ function AdminDashboard() {
                 </div>
               </div>
 
+              {/* ✅ AI Insights + Strengths + Weaknesses */}
               <div className="card" style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ marginBottom: '1.5rem' }}>{t('AI Insights & Strengths', 'تحليل الذكاء الاصطناعي')}</h3>
+                <h3 style={{ marginBottom: '1.5rem' }}>{t('AI Insights & Analysis', 'تحليل الذكاء الاصطناعي')}</h3>
+
                 {selectedApplicant.evaluation?.strengths?.length > 0 && (
                   <div style={{ marginBottom: '1.5rem' }}>
                     <h4 style={{ color: '#10b981', marginBottom: '0.75rem' }}>✅ {t('Strengths', 'نقاط القوة')}</h4>
@@ -927,15 +997,116 @@ function AdminDashboard() {
                     </ul>
                   </div>
                 )}
+
+                {selectedApplicant.evaluation?.weaknesses?.length > 0 && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h4 style={{ color: '#ef4444', marginBottom: '0.75rem' }}>⚠️ {t('Areas for Improvement', 'نقاط التحسين')}</h4>
+                    <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
+                      {selectedApplicant.evaluation.weaknesses.map((w, i) => (
+                        <li key={i} style={{ marginBottom: '0.4rem', color: 'rgba(255,255,255,0.8)' }}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* ✅ Gap Analysis */}
+                {selectedApplicant.evaluation?.gap_analysis && (
+                  <div style={{
+                    padding: '1rem', borderRadius: '8px', marginTop: '0.5rem',
+                    backgroundColor: 'rgba(252,163,17,0.06)', border: '1px solid rgba(252,163,17,0.2)'
+                  }}>
+                    <h4 style={{ color: '#fca311', marginBottom: '0.6rem', fontSize: '0.9rem' }}>
+                      🔍 {t('Gap Analysis (CV vs Interview)', 'تحليل الفجوة')}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.7', color: 'rgba(255,255,255,0.85)' }}>
+                      {selectedApplicant.evaluation.gap_analysis}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {/* ✅ Integrity Meter */}
+              <div className="card" style={{ marginTop: '1.5rem', borderLeft: `4px solid ${
+                (selectedApplicant.cheatAttempts || 0) === 0 ? '#10b981' :
+                (selectedApplicant.cheatAttempts || 0) <= 2 ? '#fca311' : '#ef4444'
+              }` }}>
+                <h3 style={{ marginBottom: '1rem' }}>🛡️ {t('Integrity Meter', 'مقياس النزاهة')}</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  {[
+                    {
+                      label: t('Integrity Score', 'درجة النزاهة'),
+                      value: `${selectedApplicant.integrityScore ?? 100}%`,
+                      color: (selectedApplicant.integrityScore ?? 100) >= 80 ? '#10b981' :
+                             (selectedApplicant.integrityScore ?? 100) >= 50 ? '#fca311' : '#ef4444'
+                    },
+                    {
+                      label: t('Tab Switches', 'تغييرات التبويب'),
+                      value: selectedApplicant.cheatAttempts || 0,
+                      color: (selectedApplicant.cheatAttempts || 0) === 0 ? '#10b981' : '#ef4444'
+                    },
+                    {
+                      label: t('Verdict', 'الحكم'),
+                      value: (selectedApplicant.cheatAttempts || 0) === 0
+                        ? (isAr ? 'نزاهة عالية ✅' : 'High Integrity ✅')
+                        : (selectedApplicant.cheatAttempts || 0) <= 2
+                          ? (isAr ? 'تحذير ⚠️' : 'Caution ⚠️')
+                          : (isAr ? 'مختبر ❌' : 'Suspicious ❌'),
+                      color: (selectedApplicant.cheatAttempts || 0) === 0 ? '#10b981' :
+                             (selectedApplicant.cheatAttempts || 0) <= 2 ? '#fca311' : '#ef4444'
+                    }
+                  ].map((item, i) => (
+                    <div key={i} style={{ textAlign: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '1.4rem', fontWeight: '800', color: item.color }}>{item.value}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.25rem' }}>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* MCQ Score */}
+                {(selectedApplicant.evaluation?.mcq_score !== undefined) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.6rem 0.8rem', backgroundColor: 'rgba(59,130,246,0.06)', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
+                      {t('Auto-Scored (MCQ/T-F)', 'التصحيح التلقائي (MCQ / صح و خطأ)')}
+                    </span>
+                    <span style={{ fontWeight: '700', color: '#3b82f6', fontSize: '1rem' }}>
+                      {selectedApplicant.evaluation.mcq_score}/40
+                    </span>
+                  </div>
+                )}
+
+                {/* UTM Source */}
+                {selectedApplicant.utm_source && (
+                  <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
+                    🔗 {t('Applied via', 'جاء عن طريق')}: <span style={{ color: 'var(--color-primary)', fontWeight: '600' }}>{selectedApplicant.utm_source}</span>
+                    {selectedApplicant.utm_medium && <span> &rarr; {selectedApplicant.utm_medium}</span>}
+                  </div>
+                )}
+              </div>
+
 
               {selectedApplicant.answers?.length > 0 && (
                 <div className="card" style={{ marginTop: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1.5rem' }}>{t('Interview Answers', 'إجابات المقابلة')}</h3>
                   {selectedApplicant.answers.map((a, i) => (
                     <div key={i} style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: i < selectedApplicant.answers.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                      <p style={{ fontWeight: '600', color: 'var(--color-primary)', marginBottom: '0.5rem' }}>Q{i + 1}: {a.question}</p>
-                      <p style={{ color: 'var(--color-text)', lineHeight: '1.6', margin: 0 }}>{a.answer}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                        <p style={{ fontWeight: '600', color: 'var(--color-primary)', margin: 0 }}>Q{i + 1}: {a.question}</p>
+                        {/* ✅ Show MCQ/T-F badge + correct/incorrect */}
+                        {(a.type === 'mcq' || a.type === 'truefalse') && (
+                          <span style={{
+                            padding: '1px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700',
+                            backgroundColor: a.type === 'mcq' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+                            color: a.type === 'mcq' ? '#3b82f6' : '#10b981'
+                          }}>{a.type === 'mcq' ? 'MCQ' : 'T/F'}</span>
+                        )}
+                        {a.isCorrect === true && (
+                          <span style={{ color: '#10b981', fontSize: '0.78rem', fontWeight: '700' }}>✔ {t('Correct', 'صحيح')}</span>
+                        )}
+                        {a.isCorrect === false && (
+                          <span style={{ color: '#ef4444', fontSize: '0.78rem', fontWeight: '700' }}>✘ {t('Incorrect', 'خطأ')}</span>
+                        )}
+                      </div>
+                      <p style={{ color: 'var(--color-text)', lineHeight: '1.6', margin: 0, fontSize: '0.9rem' }}>{a.answer}</p>
                     </div>
                   ))}
                 </div>
