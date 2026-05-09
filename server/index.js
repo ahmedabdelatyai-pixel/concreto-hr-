@@ -26,10 +26,15 @@ const connectDB = async () => {
     await mongoose.connect(MONGODB_URI.trim());
     console.log('✅ Connected to MongoDB');
     dbConnected = true;
+
+    // Auto-seed default subscription plans (runs only once)
+    const Plan = require('./models/Plan');
+    await Plan.seedDefaults();
   } catch (err) {
     console.error('❌ DB Error:', err.message);
   }
 };
+
 
 // Vercel support
 app.use(async (req, res, next) => {

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
 const { authenticate, companyOnly } = require('../middleware/auth');
+const { checkJobLimit } = require('../middleware/checkLimits');
+
 
 // GET all jobs (For current company)
 router.get('/', authenticate, companyOnly, async (req, res) => {
@@ -24,8 +26,9 @@ router.get('/:id', authenticate, companyOnly, async (req, res) => {
   }
 });
 
-// POST create
-router.post('/', authenticate, companyOnly, async (req, res) => {
+// POST create (with dynamic plan limit check)
+router.post('/', authenticate, companyOnly, checkJobLimit, async (req, res) => {
+
   try {
     const jobData = { ...req.body, company: req.companyId };
     const job = new Job(jobData);

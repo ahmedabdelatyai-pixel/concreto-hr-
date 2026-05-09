@@ -132,4 +132,137 @@ router.get('/ai-settings/public', async (req, res) => {
   }
 });
 
+// ============================================================
+// =========== OWNER: ALL JOBS MANAGEMENT (No company filter) ==
+// ============================================================
+
+// GET all jobs across all companies
+router.get('/jobs/all', ownerOnly, async (req, res) => {
+  try {
+    const Job = require('../models/Job');
+    const User = require('../models/User');
+    const jobs = await Job.find({}).sort({ createdAt: -1 });
+
+    // Attach company name to each job for display
+    const enriched = await Promise.all(jobs.map(async (job) => {
+      const owner = job.company ? await User.findById(job.company).select('companyName username') : null;
+      return {
+        _id: job._id,
+        title_en: job.title_en,
+        title_ar: job.title_ar,
+        department: job.department,
+        active: job.active,
+        createdAt: job.createdAt,
+        customQuestionsCount: job.customQuestions?.length || 0,
+        questionCount: job.questionCount || 10,
+        companyName: owner?.companyName || 'Unknown',
+        companyUsername: owner?.username || '?',
+      };
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE any job by ID (owner bypass)
+router.delete('/jobs/:id', ownerOnly, async (req, res) => {
+  try {
+    const Job = require('../models/Job');
+    const deleted = await Job.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Job not found' });
+    res.json({ message: `Job "${deleted.title_en || deleted.title_ar}" deleted successfully.` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ============================================================
+// =========== PLANS (Subscription Tiers) MANAGEMENT =========
+// ============================================================
+
+// GET all plans (owner-protected)
+router.get('/plans', ownerOnly, async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const plans = await Plan.find({}).sort({ order: 1 });
+    res.json(plans);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET all plans (public — for frontend display & limit checks)
+router.get('/plans/public', async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const plans = await Plan.find({ active: true }).sort({ order: 1 })
+      .select('name displayName jobLimit cvLimit price description order');
+    res.json(plans);
+  } catch (err) {
+    res.status(200).json([]); // Don't break frontend on error
+  }
+});
+
+// PUT — Update a plan's limits and price
+router.put('/plans/:name', ownerOnly, async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const { jobLimit, cvLimit, price, displayName, description, active } = req.body;
+
+    const updates = { updatedAt: new Date() };
+    if (jobLimit !== undefined) updates.jobLimit = Number(jobLimit);
+    if (cvLimit !== undefined) updates.cvLimit = Number(cvLimit);
+    if (price !== undefined) updates.price = Number(price);
+    if (displayName) updates.displayName = displayName;
+    if (description !== undefined) updates.description = description;
+    if (active !== undefined) updates.active = active;
+
+    const plan = await Plan.findOneAndUpdate(
+      { name: req.params.name.toLowerCase() },
+      updates,
+      { new: true, upsert: false }
+    );
+
+    if (!plan) return res.status(404).json({ message: `Plan "${req.params.name}" not found.` });
+
+    res.json({ message: `Plan "${plan.displayName}" updated successfully!`, plan });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST — Create a new custom plan
+router.post('/plans', ownerOnly, async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const { name, displayName, jobLimit, cvLimit, price, description } = req.body;
+
+    if (!name || !displayName) {
+      return res.status(400).json({ message: 'name and displayName are required.' });
+    }
+
+    const exists = await Plan.findOne({ name: name.toLowerCase() });
+    if (exists) return res.status(400).json({ message: `Plan "${name}" already exists.` });
+
+    const plan = new Plan({
+      name: name.toLowerCase(),
+      displayName,
+      jobLimit: Number(jobLimit) || 5,
+      cvLimit: Number(cvLimit) || 50,
+      price: Number(price) || 0,
+      description: description || '',
+      order: 99
+    });
+
+    await plan.save();
+    res.status(201).json({ message: 'Plan created!', plan });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
+
+

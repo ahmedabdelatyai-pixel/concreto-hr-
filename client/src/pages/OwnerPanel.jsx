@@ -4,6 +4,72 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { refreshAiSettings } from '../services/aiApi';
 
+// ── Inline component for editing a plan's limits ──────────────────────────────
+function PlanEditForm({ plan, onSave, onCancel, isAr }) {
+  const [form, setForm] = useState({
+    jobLimit: plan.jobLimit,
+    cvLimit: plan.cvLimit,
+    price: plan.price,
+  });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            {isAr ? 'حد الوظائف (9999 = غير محدود)' : 'Job Limit (9999 = unlimited)'}
+          </label>
+          <input
+            type="number" min="0" className="form-control"
+            value={form.jobLimit}
+            onChange={e => setForm({ ...form, jobLimit: Number(e.target.value) })}
+            style={{ padding: '0.5rem' }}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            {isAr ? 'حد السير الذاتية / شهر (9999 = غير محدود)' : 'CV Limit / month (9999 = unlimited)'}
+          </label>
+          <input
+            type="number" min="0" className="form-control"
+            value={form.cvLimit}
+            onChange={e => setForm({ ...form, cvLimit: Number(e.target.value) })}
+            style={{ padding: '0.5rem' }}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            {isAr ? 'السعر الشهري ($)' : 'Monthly Price ($)'}
+          </label>
+          <input
+            type="number" min="0" className="form-control"
+            value={form.price}
+            onChange={e => setForm({ ...form, price: Number(e.target.value) })}
+            style={{ padding: '0.5rem' }}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button
+          onClick={() => onSave(plan.name, form)}
+          className="btn btn-primary"
+          style={{ flex: 2, padding: '0.5rem', fontSize: '0.85rem', fontWeight: '700' }}
+        >
+          💾 {isAr ? 'حفظ' : 'Save'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="btn btn-outline"
+          style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem' }}
+        >
+          {isAr ? 'إلغاء' : 'Cancel'}
+        </button>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function OwnerPanel() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -26,6 +92,18 @@ function OwnerPanel() {
   const [aiError, setAiError] = useState('');
   const [aiSuccess, setAiSuccess] = useState('');
 
+  // All Jobs State
+  const [allJobs, setAllJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobSearch, setJobSearch] = useState('');
+
+  // Plans State
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planSuccess, setPlanSuccess] = useState('');
+  const [planError, setPlanError] = useState('');
+
   const [newCompany, setNewCompany] = useState({
     companyName: '',
     email: '',
@@ -41,8 +119,57 @@ function OwnerPanel() {
     if (isAuthenticated) {
       fetchCompanies();
       fetchAiSettings();
+      fetchPlans();
     }
   }, [isAuthenticated]);
+
+  const fetchPlans = async () => {
+    setPlansLoading(true);
+    try {
+      const res = await api.get('/owner/plans', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setPlans(res.data);
+    } catch (err) {
+      console.error('Failed to fetch plans', err);
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
+  const handleUpdatePlan = async (planName, updates) => {
+    setPlanError('');
+    setPlanSuccess('');
+    try {
+      await api.put(`/owner/plans/${planName}`, updates, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setPlanSuccess(isAr ? `✅ تم تحديث باقة "${planName}" بنجاح!` : `✅ Plan "${planName}" updated!`);
+      setEditingPlan(null);
+      fetchPlans();
+      setTimeout(() => setPlanSuccess(''), 4000);
+    } catch (err) {
+      setPlanError(err.response?.data?.message || err.message);
+    }
+  };
+
+  const fetchAllJobs = async () => {
+    setJobsLoading(true);
+    try {
+      const res = await api.get('/owner/jobs/all', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setAllJobs(res.data);
+    } catch (err) {
+      console.error('Failed to fetch all jobs', err);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  const handleDeleteOwnerJob = async (jobId, jobTitle) => {
+    if (!window.confirm(isAr ? `هل أنت متأكد من حذف وظيفة "${jobTitle}"؟` : `Delete job "${jobTitle}"?`)) return;
+    try {
+      await api.delete(`/owner/jobs/${jobId}`, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setAllJobs(prev => prev.filter(j => j._id !== jobId));
+    } catch (err) {
+      alert(isAr ? 'فشل الحذف: ' + (err.response?.data?.message || err.message) : 'Delete failed: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
   const fetchAiSettings = async () => {
     setAiLoading(true);
@@ -317,9 +444,11 @@ function OwnerPanel() {
         </div>
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem', flexWrap: 'wrap' }}>
           {[
             { key: 'companies', label: isAr ? '🏢 إدارة الشركات' : '🏢 Companies', color: '#10b981' },
+            { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444' },
+            { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311' },
             { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
           ].map(tab => (
             <button
@@ -683,6 +812,220 @@ function OwnerPanel() {
                     ? 'فلاتر الأمان من Google مفعّلة تلقائياً وتحمي النظام من الردود الضارة أو غير اللائقة في جميع الطلبات. لا يمكن تعطيلها لضمان سلامة المستخدمين.'
                     : 'Google Safety Filters are automatically active on all requests, protecting the system from harmful or inappropriate responses. Cannot be disabled to ensure user safety.'}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== ALL JOBS TAB ===== */}
+        {activeTab === 'jobs' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{isAr ? '📋 كل الوظائف في النظام' : '📋 All Jobs in System'}</h3>
+                <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                  {isAr ? 'جميع الوظائف من جميع الشركات — يمكن حذف أي وظيفة بدون قيود' : 'All jobs from all companies — delete any job without restrictions'}
+                </p>
+              </div>
+              <button
+                className="btn btn-outline"
+                onClick={fetchAllJobs}
+                disabled={jobsLoading}
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+              >
+                {jobsLoading ? '...' : (isAr ? '🔄 تحديث' : '🔄 Refresh')}
+              </button>
+            </div>
+
+            {/* Search */}
+            <input
+              type="text"
+              className="form-control"
+              placeholder={isAr ? '🔍 ابحث بالاسم أو اسم الشركة...' : '🔍 Search by job name or company...'}
+              value={jobSearch}
+              onChange={e => setJobSearch(e.target.value)}
+              style={{ marginBottom: '1rem', padding: '0.75rem 1rem' }}
+            />
+
+            {jobsLoading ? (
+              <div className="animate-pulse" style={{ color: '#ef4444', padding: '2rem', textAlign: 'center' }}>
+                {isAr ? 'جاري تحميل الوظائف...' : 'Loading jobs...'}
+              </div>
+            ) : allJobs.length === 0 ? (
+              <div className="card text-center" style={{ padding: '3rem' }}>
+                <p className="text-muted">
+                  {isAr ? 'اضغط على "تحديث" لتحميل الوظائف.' : 'Click "Refresh" to load all jobs.'}
+                </p>
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '0.75rem 1.5rem', backgroundColor: 'rgba(239,68,68,0.05)', borderBottom: '1px solid rgba(239,68,68,0.15)', fontSize: '0.8rem', color: '#ef4444', fontWeight: '600' }}>
+                  ⚠️ {isAr ? `إجمالي ${allJobs.length} وظيفة في النظام` : `Total: ${allJobs.length} jobs in the system`}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--color-border)', fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: isAr ? 'right' : 'left' }}>{isAr ? 'الوظيفة' : 'Job Title'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: isAr ? 'right' : 'left' }}>{isAr ? 'الشركة' : 'Company'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'أسئلة' : 'Questions'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'الحالة' : 'Status'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'التاريخ' : 'Date'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'حذف' : 'Delete'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allJobs
+                      .filter(j => {
+                        const q = jobSearch.toLowerCase();
+                        return !q || (j.title_en || '').toLowerCase().includes(q) || (j.title_ar || '').includes(q) || (j.companyName || '').toLowerCase().includes(q);
+                      })
+                      .map(job => (
+                        <tr key={job._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{job.title_en || '—'}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>{job.title_ar}</div>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: '600' }}>{job.companyName}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>@{job.companyUsername}</div>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.8rem' }}>
+                              {job.customQuestionsCount} custom / {job.questionCount} total
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
+                              backgroundColor: job.active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                              color: job.active ? '#10b981' : '#ef4444'
+                            }}>
+                              {job.active ? (isAr ? 'نشطة' : 'Active') : (isAr ? 'مخفية' : 'Inactive')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)' }}>
+                            {new Date(job.createdAt).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                            <button
+                              onClick={() => handleDeleteOwnerJob(job._id, job.title_en || job.title_ar)}
+                              style={{
+                                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                                color: '#ef4444', borderRadius: '6px', padding: '0.3rem 0.75rem',
+                                cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={e => { e.target.style.background = '#ef4444'; e.target.style.color = '#fff'; }}
+                              onMouseLeave={e => { e.target.style.background = 'rgba(239,68,68,0.1)'; e.target.style.color = '#ef4444'; }}
+                            >
+                              🗑 {isAr ? 'حذف' : 'Delete'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== PLANS TAB ===== */}
+        {activeTab === 'plans' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{isAr ? '💳 إدارة باقات الاشتراك' : '💳 Subscription Plans & Limits'}</h3>
+                <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                  {isAr ? 'تعديل حدود الوظائف والسير الذاتية لكل باقة — يُطبّق فوراً على جميع الشركات' : 'Edit job & CV limits per plan — applied instantly to all subscribers'}
+                </p>
+              </div>
+              <button className="btn btn-outline" onClick={fetchPlans} disabled={plansLoading} style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
+                {plansLoading ? '...' : (isAr ? '🔄 تحديث' : '🔄 Refresh')}
+              </button>
+            </div>
+
+            {planSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{planSuccess}</div>}
+            {planError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>⚠️ {planError}</div>}
+
+            {plansLoading ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#fca311' }}>{isAr ? 'جاري تحميل الباقات...' : 'Loading plans...'}</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                {plans.map(plan => (
+                  <div key={plan.name} className="card" style={{
+                    padding: '2rem',
+                    border: `1px solid ${plan.name === 'enterprise' ? 'rgba(139,92,246,0.4)' : plan.name === 'professional' ? 'rgba(59,130,246,0.3)' : plan.name === 'starter' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    position: 'relative'
+                  }}>
+                    {/* Plan Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.2rem' }}>{plan.displayName}</h3>
+                        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#fca311', marginTop: '0.25rem' }}>
+                          ${plan.price}<span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontWeight: '400' }}>/mo</span>
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '700',
+                        backgroundColor: plan.active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: plan.active ? '#10b981' : '#ef4444'
+                      }}>
+                        {plan.active ? (isAr ? 'نشطة' : 'Active') : (isAr ? 'موقفة' : 'Paused')}
+                      </span>
+                    </div>
+
+                    {/* Limits Display */}
+                    {editingPlan === plan.name ? (
+                      // EDIT MODE
+                      <PlanEditForm plan={plan} onSave={handleUpdatePlan} onCancel={() => setEditingPlan(null)} isAr={isAr} />
+                    ) : (
+                      // VIEW MODE
+                      <div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>{isAr ? 'حد الوظائف' : 'Job Limit'}</span>
+                            <span style={{ fontWeight: '800', color: '#3b82f6' }}>
+                              {plan.jobLimit >= 9999 ? '∞ Unlimited' : plan.jobLimit}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>{isAr ? 'حد السير الذاتية / شهر' : 'CV Limit / month'}</span>
+                            <span style={{ fontWeight: '800', color: '#10b981' }}>
+                              {plan.cvLimit >= 9999 ? '∞ Unlimited' : plan.cvLimit}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setEditingPlan(plan.name)}
+                          style={{
+                            width: '100%', padding: '0.6rem', borderRadius: '8px', cursor: 'pointer',
+                            background: 'rgba(252,163,17,0.1)', border: '1px solid rgba(252,163,17,0.3)',
+                            color: '#fca311', fontWeight: '700', fontSize: '0.85rem', transition: 'all 0.2s'
+                          }}
+                        >
+                          ✏️ {isAr ? 'تعديل الحدود' : 'Edit Limits'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div style={{ marginTop: '2rem', padding: '1rem 1.5rem', backgroundColor: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px' }}>
+              <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#3b82f6', marginBottom: '0.4rem' }}>
+                💡 {isAr ? 'كيف يعمل النظام' : 'How it works'}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.7' }}>
+                {isAr
+                  ? 'عند تعديل حد أي باقة، يتم تطبيقه فوراً على جميع الشركات المشتركة في هذه الباقة. Unlimited = 9999. الحد يُحسب شهرياً للسير الذاتية ويتجدد تلقائياً.'
+                  : 'Updating any plan limit takes effect immediately for all companies on that plan. Set to 9999 for unlimited. CV limit is calculated monthly and resets automatically.'}
               </div>
             </div>
           </div>

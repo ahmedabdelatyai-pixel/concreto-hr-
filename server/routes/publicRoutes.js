@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
+const { checkCvLimit, getCompanyPlanStatus } = require('../middleware/checkLimits');
 
 // Public job listing for candidate applications
 router.get('/jobs', async (req, res) => {
@@ -43,7 +44,6 @@ router.post('/integrity', async (req, res) => {
     const Applicant = require('../models/Applicant');
     const IntegrityLog = require('../models/IntegrityLog');
 
-    // Find applicant to get their associated company
     const applicant = await Applicant.findById(applicantId);
     if (!applicant) {
       return res.status(404).json({ message: 'Applicant not found' });
@@ -60,7 +60,6 @@ router.post('/integrity', async (req, res) => {
       ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
     });
 
-    // Auto-flag critical incidents
     if (severity === 'critical' || incidentType === 'dev_tools') {
       log.flagged = true;
     }
@@ -77,40 +76,19 @@ router.post('/integrity', async (req, res) => {
 router.post('/applicants/init', async (req, res) => {
   try {
     const { candidate, jobId, source } = req.body;
-    const Job = require('../models/Job');
     const Applicant = require('../models/Applicant');
-    const User = require('../models/User');
 
     const job = await Job.findById(jobId);
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    // --- CHECK SUBSCRIPTION LIMIT ---
-    const companyAdmin = await User.findById(job.company);
-    if (companyAdmin) {
-      const plan = (companyAdmin.subscription || 'starter').toLowerCase();
-      const limits = { starter: 50, professional: 200, enterprise: 5000 };
-      const limit = limits[plan] || 50;
-
-      // Count applicants in the current month
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const monthCount = await Applicant.countDocuments({
-        company: job.company,
-        createdAt: { $gte: startOfMonth }
-      });
-
-      if (monthCount >= limit) {
-        return res.status(403).json({ 
-          message: 'نعتذر، لقد تم استهلاك الحد الأقصى للمتقدمين لهذا الشهر لهذه الشركة. | Sorry, the monthly applicant limit for this company has been reached.',
-          limitReached: true
-        });
-      }
+    // ─── DYNAMIC CV LIMIT CHECK (reads from Plans DB) ───────────────────────
+    const limitError = await checkCvLimit(job.company);
+    if (limitError) {
+      return res.status(403).json(limitError);
     }
-    // --------------------------------
+    // ────────────────────────────────────────────────────────────────────────
 
     const applicant = new Applicant({
       candidate,
@@ -130,7 +108,7 @@ router.post('/applicants/init', async (req, res) => {
   }
 });
 
-// PATCH submit applicant results (Public)
+// PATCH submit applicant results (Public) + Integrately Webhook
 router.patch('/applicants/:id/submit', async (req, res) => {
   try {
     const { answers, evaluation, cvData, cvFile, accessSecret } = req.body;
@@ -153,6 +131,39 @@ router.patch('/applicants/:id/submit', async (req, res) => {
       return res.status(403).json({ message: 'وصول غير مصرح به أو رمز غير صالح | Unauthorized or invalid secret' });
     }
 
+    // ─── INTEGRATELY WEBHOOK ─────────────────────────────────────────────────
+    // يتم إرسال الـ Webhook بعد نجاح الـ submit لإعلام Integrately
+    const WEBHOOK_URL = process.env.INTEGRATELY_WEBHOOK_URL;
+    if (WEBHOOK_URL) {
+      try {
+        const planStatus = await getCompanyPlanStatus(applicant.company);
+
+        const webhookPayload = {
+          event: 'applicant_submitted',
+          timestamp: new Date().toISOString(),
+          applicant_id: applicant._id,
+          candidate_name: applicant.candidate?.name || '',
+          candidate_email: applicant.candidate?.email || '',
+          job_id: applicant.jobId,
+          overall_score: evaluation?.overallScore || 0,
+          recommendation: evaluation?.recommendation || '',
+          // ✅ Plan Status Variables (for Integrately conditions)
+          ...planStatus
+        };
+
+        // Fire-and-forget (don't block the response)
+        fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(webhookPayload)
+        }).catch(err => console.warn('[Webhook] Failed:', err.message));
+
+      } catch (webhookErr) {
+        console.warn('[Webhook] Error building payload:', webhookErr.message);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     res.json({ message: 'Application submitted successfully', applicant });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -160,3 +171,4 @@ router.patch('/applicants/:id/submit', async (req, res) => {
 });
 
 module.exports = router;
+
