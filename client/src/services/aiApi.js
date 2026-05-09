@@ -1,31 +1,85 @@
 /**
  * AI Evaluation Service (Google Gemini Integration)
  * TalentFlow - HR Platform
+ * v3.0 — Dynamic System Prompt + Safety Settings + Structured Context
  */
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
-const GEMINI_URL = (key) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+// ─── System Prompt Cache (loaded once per session) ────────────────────────────
+let _cachedSystemPrompt = null;
+let _cachedModel = 'gemini-2.0-flash';
 
-const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) => {
-  const response = await fetch(GEMINI_URL(apiKey), {
+const getSystemSettings = async () => {
+  if (_cachedSystemPrompt) return { systemPrompt: _cachedSystemPrompt, model: _cachedModel };
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || '/api';
+    const res = await fetch(`${API_BASE}/owner/ai-settings/public`);
+    if (res.ok) {
+      const data = await res.json();
+      _cachedSystemPrompt = data.systemPrompt;
+      _cachedModel = data.model || 'gemini-2.0-flash';
+    }
+  } catch (e) {
+    console.warn('Could not fetch AI settings from server, using defaults.');
+  }
+  // Fallback default
+  if (!_cachedSystemPrompt) {
+    _cachedSystemPrompt = `أنت الخبير الرائد (Senior HR Director) في منصة TalentFlow، تمتلك خبرة دولية تزيد عن 50 عاماً في إدارة الموارد البشرية والتوظيف. أنت استشاري إداري محنك يتميز بالفراسة والموضوعية المطلقة. مهامك: تحليل السير الذاتية، توليد أسئلة STAR Method ذكية، وتقييم الإجابات بدقة جراحية.`;
+    _cachedModel = 'gemini-2.0-flash';
+  }
+  return { systemPrompt: _cachedSystemPrompt, model: _cachedModel };
+};
+
+// Force refresh the cache (called after owner updates settings)
+export const refreshAiSettings = () => { _cachedSystemPrompt = null; };
+
+// ─── Safety Settings (Gemini Safety Filters) ─────────────────────────────────
+const SAFETY_SETTINGS = [
+  { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+];
+
+// ─── Core Gemini Caller ───────────────────────────────────────────────────────
+const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5, contextVars = {}) => {
+  const { systemPrompt, model } = await getSystemSettings();
+
+  // Build structured prompt with context variables if provided
+  let fullPrompt = prompt;
+  if (contextVars && Object.keys(contextVars).length > 0) {
+    const contextBlock = Object.entries(contextVars)
+      .map(([k, v]) => `[${k.toUpperCase()}]: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join('\n');
+    fullPrompt = `${contextBlock}\n\n---\n\n${prompt}`;
+  }
+
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ parts: [{ text: fullPrompt }] }],
       generationConfig: {
         temperature,
         topP: 0.9,
         maxOutputTokens: 4096,
         ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
       },
+      safetySettings: SAFETY_SETTINGS,
     }),
   });
+
   const data = await response.json();
   if (data.error) throw new Error(data.error.message);
+  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    throw new Error('Empty response from Gemini API');
+  }
   const raw = data.candidates[0].content.parts[0].text;
   return jsonMode ? JSON.parse(raw) : raw;
 };
+
 
 // Extract real text from PDF file using pdfjs-dist
 const extractPdfText = async (file) => {

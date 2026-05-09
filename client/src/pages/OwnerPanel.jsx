@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { refreshAiSettings } from '../services/aiApi';
 
 function OwnerPanel() {
   const { i18n } = useTranslation();
@@ -11,12 +12,19 @@ function OwnerPanel() {
   const [ownerPassword, setOwnerPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('companies');
   
   const [companies, setCompanies] = useState([]);
   const [stats, setStats] = useState({ totalCompanies: 0, totalApplicants: 0, activeJobs: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // AI Settings State
+  const [aiSettings, setAiSettings] = useState({ systemPrompt: '', model: 'gemini-2.0-flash', updatedAt: null, isDefault: true });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiSuccess, setAiSuccess] = useState('');
 
   const [newCompany, setNewCompany] = useState({
     companyName: '',
@@ -32,8 +40,40 @@ function OwnerPanel() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchCompanies();
+      fetchAiSettings();
     }
   }, [isAuthenticated]);
+
+  const fetchAiSettings = async () => {
+    setAiLoading(true);
+    try {
+      const res = await api.get('/owner/ai-settings', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setAiSettings(res.data);
+    } catch (err) {
+      console.error('Failed to fetch AI settings', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleSaveAiSettings = async () => {
+    setAiLoading(true);
+    setAiError('');
+    setAiSuccess('');
+    try {
+      await api.post('/owner/ai-settings', {
+        systemPrompt: aiSettings.systemPrompt,
+        model: aiSettings.model
+      }, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setAiSuccess(isAr ? '✅ تم حفظ إعدادات الذكاء الاصطناعي بنجاح! التغييرات ستظهر فوراً.' : '✅ AI settings saved! Changes will take effect immediately.');
+      refreshAiSettings(); // Clear the client-side cache so new prompt is used
+      setTimeout(() => setAiSuccess(''), 5000);
+    } catch (err) {
+      setAiError(err.response?.data?.message || err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleOwnerLogin = (e) => {
     e.preventDefault();
@@ -260,29 +300,42 @@ function OwnerPanel() {
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 5%' }}>
         {/* Top Section */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <h1 style={{ fontSize: '2.2rem', fontWeight: '900', letterSpacing: '-1px', margin: 0 }}>
-              {isAr ? 'إدارة المشتركين' : 'Subscriber Management'}
+              {isAr ? 'لوحة المالك' : 'Owner Super-Panel'}
             </h1>
-            <p className="text-muted">{isAr ? 'التحكم الكامل في الشركات والاشتراكات' : 'Full control over companies and subscriptions'}</p>
+            <p className="text-muted">{isAr ? 'التحكم الكامل في الشركات، الاشتراكات، وعقل النظام الذكي' : 'Full control over companies, subscriptions, and the AI brain'}</p>
           </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button 
-              className="btn btn-primary"
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              style={{ padding: '0.8rem 1.5rem', fontWeight: '600' }}
-            >
-              {showCreateForm ? (isAr ? '✕ إغلاق' : '✕ Close') : (isAr ? '➕ إضافة شركة' : '➕ Add Company')}
-            </button>
+          <button
+            className="btn btn-outline"
+            onClick={() => setIsAuthenticated(false)}
+            style={{ padding: '0.8rem 1.5rem', borderColor: 'rgba(255,255,255,0.1)' }}
+          >
+            {isAr ? 'خروج' : 'Logout'}
+          </button>
+        </div>
+
+        {/* Tab Navigation */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem' }}>
+          {[
+            { key: 'companies', label: isAr ? '🏢 إدارة الشركات' : '🏢 Companies', color: '#10b981' },
+            { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
+          ].map(tab => (
             <button
-              className="btn btn-outline"
-              onClick={() => setIsAuthenticated(false)}
-              style={{ padding: '0.8rem 1.5rem', borderColor: 'rgba(255,255,255,0.1)' }}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '0.6rem 1.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s',
+                backgroundColor: activeTab === tab.key ? tab.color : 'rgba(255,255,255,0.05)',
+                color: activeTab === tab.key ? '#fff' : 'rgba(255,255,255,0.5)',
+                boxShadow: activeTab === tab.key ? `0 0 20px ${tab.color}40` : 'none'
+              }}
             >
-              {isAr ? 'خروج' : 'Logout'}
+              {tab.label}
             </button>
-          </div>
+          ))}
         </div>
 
         {/* Stats Grid */}
@@ -301,7 +354,20 @@ function OwnerPanel() {
           </div>
         </div>
 
-        {/* Create Form Modal Style */}
+        {/* ===== COMPANIES TAB ===== */}
+        {activeTab === 'companies' && (<>
+
+        {/* Create Form */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            style={{ padding: '0.8rem 1.5rem', fontWeight: '600' }}
+          >
+            {showCreateForm ? (isAr ? '✕ إغلاق' : '✕ Close') : (isAr ? '➕ إضافة شركة' : '➕ Add Company')}
+          </button>
+        </div>
+
         {showCreateForm && (
           <div className="fade-in" style={{ marginBottom: '3rem' }}>
             <div className="card card-glow" style={{ padding: '3rem', border: '1px solid var(--color-primary-glow)' }}>
@@ -504,6 +570,123 @@ function OwnerPanel() {
             </table>
           </div>
         </div>
+        </>)}
+
+        {/* ===== AI BRAIN SETTINGS TAB ===== */}
+        {activeTab === 'ai' && (
+          <div className="fade-in">
+            <div className="card" style={{ padding: '2.5rem', border: '1px solid rgba(139,92,246,0.3)', boxShadow: '0 0 40px rgba(139,92,246,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🧠</div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800' }}>{isAr ? 'إعدادات عقل النظام' : 'AI Brain Settings'}</h2>
+                  <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>{isAr ? 'تعديل شخصية الذكاء الاصطناعي وتعليمات النظام' : 'Modify AI personality and system instructions'}</p>
+                </div>
+              </div>
+
+              {/* Status Bar */}
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px', marginBottom: '2rem', marginTop: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'آخر تحديث:' : 'Last updated:'}</span>
+                <span style={{ fontSize: '0.8rem', color: aiSettings.isDefault ? '#fca311' : '#10b981', fontWeight: '600' }}>
+                  {aiSettings.isDefault ? (isAr ? '⚠️ يستخدم الإعداد الافتراضي' : '⚠️ Using default settings') : new Date(aiSettings.updatedAt).toLocaleString()}
+                </span>
+                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', backgroundColor: 'rgba(139,92,246,0.15)', color: '#8b5cf6', padding: '2px 10px', borderRadius: '20px', fontWeight: '600' }}>
+                  {aiSettings.model}
+                </span>
+              </div>
+
+              {/* Model Selector */}
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
+                  {isAr ? '🤖 نموذج الذكاء الاصطناعي' : '🤖 AI Model'}
+                </label>
+                <select
+                  className="form-control"
+                  value={aiSettings.model}
+                  onChange={e => setAiSettings({ ...aiSettings, model: e.target.value })}
+                  style={{ maxWidth: '300px', padding: '0.7rem' }}
+                >
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast & Cheap)</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Balanced)</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Most Powerful)</option>
+                </select>
+              </div>
+
+              {/* System Prompt Editor */}
+              <div className="form-group" style={{ marginBottom: '2rem' }}>
+                <label className="form-label" style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '0.75rem', display: 'block' }}>
+                  {isAr ? '📝 تعليمات النظام (System Prompt)' : '📝 System Instructions (System Prompt)'}
+                </label>
+                <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+                  {isAr
+                    ? 'هذا النص هو "شخصية" الذكاء الاصطناعي. سيتم إرساله مع كل طلب تلقائياً كمرجع دائم للنموذج.'
+                    : 'This text is the AI "personality". It will be sent with every request automatically as the model\'s permanent reference.'}
+                </p>
+                {aiLoading && !aiSettings.systemPrompt ? (
+                  <div className="animate-pulse" style={{ color: '#8b5cf6', padding: '1rem' }}>{isAr ? 'جاري تحميل الإعدادات...' : 'Loading settings...'}</div>
+                ) : (
+                  <textarea
+                    value={aiSettings.systemPrompt}
+                    onChange={e => setAiSettings({ ...aiSettings, systemPrompt: e.target.value })}
+                    rows={16}
+                    className="form-control"
+                    dir="auto"
+                    style={{
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      lineHeight: '1.7',
+                      resize: 'vertical',
+                      backgroundColor: '#050a14',
+                      border: '1px solid rgba(139,92,246,0.3)',
+                      color: '#e2e8f0',
+                      padding: '1.25rem'
+                    }}
+                    placeholder={isAr ? 'اكتب تعليمات النظام هنا...' : 'Write system instructions here...'}
+                  />
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>{aiSettings.systemPrompt?.length || 0} {isAr ? 'حرف' : 'characters'}</span>
+                </div>
+              </div>
+
+              {/* Feedback Messages */}
+              {aiError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>⚠️ {aiError}</div>}
+              {aiSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>{aiSuccess}</div>}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button
+                  onClick={handleSaveAiSettings}
+                  disabled={aiLoading}
+                  className="btn btn-primary"
+                  style={{ flex: 2, padding: '0.9rem', fontSize: '1rem', fontWeight: '700', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', border: 'none' }}
+                >
+                  {aiLoading ? (isAr ? '⏳ جاري الحفظ...' : '⏳ Saving...') : (isAr ? '💾 حفظ إعدادات عقل النظام' : '💾 Save AI Brain Settings')}
+                </button>
+                <button
+                  onClick={fetchAiSettings}
+                  className="btn btn-outline"
+                  style={{ flex: 1, padding: '0.9rem' }}
+                >
+                  {isAr ? '🔄 استعادة الحالي' : '🔄 Reload Current'}
+                </button>
+              </div>
+            </div>
+
+            {/* Safety Notice */}
+            <div style={{ marginTop: '1.5rem', padding: '1rem 1.5rem', backgroundColor: 'rgba(252,163,17,0.05)', border: '1px solid rgba(252,163,17,0.15)', borderRadius: '10px', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '1.2rem' }}>🛡️</span>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fca311', marginBottom: '0.3rem' }}>{isAr ? 'إعدادات الأمان (Safety Settings)' : 'Safety Settings — Active'}</div>
+                <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.6' }}>
+                  {isAr
+                    ? 'فلاتر الأمان من Google مفعّلة تلقائياً وتحمي النظام من الردود الضارة أو غير اللائقة في جميع الطلبات. لا يمكن تعطيلها لضمان سلامة المستخدمين.'
+                    : 'Google Safety Filters are automatically active on all requests, protecting the system from harmful or inappropriate responses. Cannot be disabled to ensure user safety.'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Modal */}
         {editingCompany && (
