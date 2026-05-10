@@ -21,17 +21,30 @@ function LandingPage() {
     }
   }, [searchParams, setCandidateInfo]);
 
+  const [dbPlans, setDbPlans] = useState([]);
 
   useEffect(() => {
     const checkServer = async () => {
       try {
-        await axios.get(API_URL.replace('/api', '/'));
+        await axios.get(`${API_URL}/public/jobs`, { timeout: 5000 });
         setServerStatus('online');
-      } catch (e) {
+      } catch (err) {
         setServerStatus('offline');
       }
     };
     checkServer();
+
+    const fetchPlans = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/public/plans`);
+        if (res.data && res.data.length > 0) {
+          setDbPlans(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load pricing plans:', err);
+      }
+    };
+    fetchPlans();
   }, [API_URL]);
 
   const isArabic = i18n.language === 'ar';
@@ -159,7 +172,7 @@ function LandingPage() {
       </section>
 
       {/* Stats Section */}
-      <section id="pricing" style={{ padding: '6rem 10%', display: 'flex', justifyContent: 'space-around', backgroundColor: '#050a14', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <section style={{ padding: '6rem 10%', display: 'flex', justifyContent: 'space-around', backgroundColor: '#050a14', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         {[
           { label: isArabic ? 'توفير في الوقت' : 'Time Saved', val: '70%' },
           { label: isArabic ? 'دقة التقييم' : 'Accuracy', val: '95%' },
@@ -171,6 +184,100 @@ function LandingPage() {
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', marginTop: '0.5rem', fontWeight: '600', textTransform: 'uppercase' }}>{s.label}</div>
           </div>
         ))}
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" style={{ padding: '8rem 10%', background: '#080e1a', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1rem' }}>
+            {isArabic ? 'باقات السعة الذكية' : 'Intelligence Capacity Plans'}
+          </h2>
+          <div style={{ width: '60px', height: '4px', backgroundColor: 'var(--color-primary)', margin: '0 auto' }}></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+          {(dbPlans.length > 0 ? dbPlans : [
+            {
+              name: 'starter',
+              displayName: 'Core Intelligence',
+              price: 0,
+              jobLimit: 5,
+              cvLimit: 50
+            },
+            {
+              name: 'professional',
+              displayName: 'Pro Cognitive',
+              price: 49,
+              jobLimit: 15,
+              cvLimit: 300
+            },
+            {
+              name: 'enterprise',
+              displayName: 'Enterprise Neural',
+              price: 199,
+              jobLimit: 9999,
+              cvLimit: 9999
+            }
+          ]).map((plan, i) => {
+            const isPro = plan.name === 'professional';
+            const color = plan.name === 'starter' ? '#10b981' : (plan.name === 'professional' ? '#3b82f6' : '#8b5cf6');
+            const descAr = plan.name === 'starter' ? 'سعة معالجة ذكية للشركات الناشئة التي تبحث عن الدقة.' : (plan.name === 'professional' ? 'قوة تحليلية متقدمة لفرق التوظيف الطموحة.' : 'حلول شاملة وقدرات معالجة فائقة للمؤسسات الكبرى.');
+            const descEn = plan.name === 'starter' ? 'Smart processing capacity for startups seeking precision.' : (plan.name === 'professional' ? 'Advanced analytical power for ambitious recruitment teams.' : 'Comprehensive solutions and superior processing for large enterprises.');
+            const extraFeatsAr = plan.name === 'starter' ? ['تقييم الذكاء الاصطناعي', 'لوحة تحكم أساسية'] : (plan.name === 'professional' ? ['تحليل الشخصية DISC', 'تقارير PDF احترافية', 'دعم فني سريع'] : ['تخصيص كامل للنظام', 'مكافحة الغش المتقدمة', 'مدير حساب مخصص']);
+            const extraFeatsEn = plan.name === 'starter' ? ['AI Evaluation', 'Basic Dashboard'] : (plan.name === 'professional' ? ['DISC Personality Profiling', 'Professional PDF Reports', 'Priority Support'] : ['Full System Customization', 'Advanced Anti-Cheat', 'Dedicated Account Manager']);
+            
+            return (
+              <div key={plan._id || i} style={{
+                background: isPro ? 'linear-gradient(180deg, rgba(59,130,246,0.1) 0%, rgba(5,10,20,1) 100%)' : '#050a14',
+                border: `1px solid ${isPro ? color : 'rgba(255,255,255,0.05)'}`,
+                borderRadius: '16px', padding: '3rem 2rem', position: 'relative',
+                display: 'flex', flexDirection: 'column', transition: 'transform 0.3s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-10px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                {isPro && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)',
+                    background: color, color: '#fff', padding: '0.4rem 1.5rem', borderRadius: '20px',
+                    fontSize: '0.8rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase'
+                  }}>
+                    {isArabic ? 'الأكثر اختياراً' : 'Most Popular'}
+                  </div>
+                )}
+                <h3 style={{ fontSize: '1.6rem', fontWeight: '800', marginBottom: '0.5rem', color: color, textAlign: 'center' }}>
+                  {isArabic ? (plan.name === 'starter' ? 'الذكاء الأساسي' : (plan.name === 'professional' ? 'الإدراك الاحترافي' : 'العصب المؤسسي')) : plan.displayName}
+                </h3>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', textAlign: 'center', minHeight: '50px', marginBottom: '2rem' }}>
+                  {isArabic ? descAr : descEn}
+                </p>
+                <div style={{ fontSize: '3.5rem', fontWeight: '900', textAlign: 'center', marginBottom: '2rem' }}>
+                  ${plan.price}<span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>/{isArabic ? 'شهر' : 'mo'}</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 3rem 0', flex: 1 }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
+                    <span style={{ color: color }}>✓</span> {plan.jobLimit >= 9999 ? (isArabic ? 'وظائف غير محدودة' : 'Unlimited Jobs') : `${plan.jobLimit} ${isArabic ? 'وظائف نشطة' : 'Active Jobs'}`}
+                  </li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
+                    <span style={{ color: color }}>✓</span> {plan.cvLimit >= 9999 ? (isArabic ? 'سير ذاتية غير محدودة' : 'Unlimited CVs') : `${plan.cvLimit} ${isArabic ? 'سيرة ذاتية / شهر' : 'CVs / month'}`}
+                  </li>
+                  {(isArabic ? extraFeatsAr : extraFeatsEn).map((feat, idx) => (
+                    <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
+                      <span style={{ color: color }}>✓</span> {feat}
+                    </li>
+                  ))}
+                </ul>
+                <button className="btn" onClick={() => navigate('/apply')} style={{
+                  background: isPro ? color : 'transparent',
+                  border: `2px solid ${color}`,
+                  color: isPro ? '#fff' : color,
+                  padding: '1rem', width: '100%', fontSize: '1.1rem', fontWeight: '700', borderRadius: '8px'
+                }}>
+                  {isArabic ? 'ابدأ الآن' : 'Get Started'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* CTA Section */}
@@ -188,16 +295,29 @@ function LandingPage() {
       
       {/* Server Status Indicator */}
       <div style={{
-        position: 'fixed', bottom: '20px', right: '20px', padding: '8px 12px',
-        backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: '20px', fontSize: '0.7rem',
+        position: 'fixed', bottom: '20px', right: '20px', padding: '8px 15px',
+        backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
         display: 'flex', alignItems: 'center', gap: '8px', zIndex: 1000,
         border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)'
       }}>
         <div style={{
-          width: '8px', height: '8px', borderRadius: '50%',
-          backgroundColor: serverStatus === 'online' ? '#10b981' : (serverStatus === 'offline' ? '#ef4444' : '#fca311')
+          width: '10px', height: '10px', borderRadius: '50%',
+          backgroundColor: serverStatus === 'online' ? '#10b981' : (serverStatus === 'offline' ? '#ef4444' : '#fca311'),
+          boxShadow: serverStatus === 'online' ? '0 0 10px #10b981' : 'none',
+          animation: serverStatus === 'online' ? 'pulse 2s infinite' : 'none'
         }}></div>
-        <span style={{ color: '#fff' }}>SYSTEM: {serverStatus.toUpperCase()}</span>
+        <style>
+          {`
+            @keyframes pulse {
+              0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+              70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+              100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            }
+          `}
+        </style>
+        <span style={{ color: '#fff', letterSpacing: '0.5px' }}>
+          {serverStatus === 'online' ? (isArabic ? 'الشبكة العصبية: نشطة' : 'Neural Network: Active') : (isArabic ? 'الشبكة العصبية: غير متصلة' : 'Neural Network: Offline')}
+        </span>
       </div>
     </div>
   );

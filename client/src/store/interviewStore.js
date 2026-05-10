@@ -26,6 +26,7 @@ export const useInterviewStore = create(
       evaluation: null,
       // ✅ integrity tracking (cheat counter)
       cheatAttempts: 0,
+      isDemoMode: false,
 
       setCandidateInfo: (info) => set((state) => ({
         candidate: { ...state.candidate, ...info }
@@ -69,6 +70,7 @@ export const useInterviewStore = create(
         interviewAnswers: [],
         evaluation: null,
         cheatAttempts: 0,
+        isDemoMode: false,
       })
     }),
     {

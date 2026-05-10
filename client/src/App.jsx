@@ -43,7 +43,7 @@ function App() {
         <div className="app-container">
           <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/login" element={<AuthPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
           <Route path="/apply" element={<CandidateProfile />} />

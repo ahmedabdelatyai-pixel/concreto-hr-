@@ -104,8 +104,21 @@ function OwnerPanel() {
   const [planSuccess, setPlanSuccess] = useState('');
   const [planError, setPlanError] = useState('');
 
+  // Footer Settings State
+  const [footerLinks, setFooterLinks] = useState({ email: '', website: '', linkedin: '', facebook: '', x: '' });
+  const [footerLoading, setFooterLoading] = useState(false);
+  const [footerSuccess, setFooterSuccess] = useState('');
+  const [footerError, setFooterError] = useState('');
+
+  // User Manual State
+  const [userManual, setUserManual] = useState({ text: '' });
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualSuccess, setManualSuccess] = useState('');
+  const [manualError, setManualError] = useState('');
+
   const [newCompany, setNewCompany] = useState({
     companyName: '',
+    logo: '',
     email: '',
     username: '',
     password: '',
@@ -120,8 +133,64 @@ function OwnerPanel() {
       fetchCompanies();
       fetchAiSettings();
       fetchPlans();
+      fetchFooterLinks();
+      fetchUserManual();
     }
   }, [isAuthenticated]);
+
+  const fetchUserManual = async () => {
+    setManualLoading(true);
+    try {
+      const res = await api.get('/owner/user-manual', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setUserManual(res.data || { text: '' });
+    } catch (err) {
+      console.error('Failed to fetch user manual', err);
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
+  const handleSaveUserManual = async () => {
+    setManualLoading(true);
+    setManualError('');
+    setManualSuccess('');
+    try {
+      await api.post('/owner/user-manual', userManual, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setManualSuccess(isAr ? '✅ تم حفظ الدليل الإرشادي بنجاح!' : '✅ User manual saved successfully!');
+      setTimeout(() => setManualSuccess(''), 4000);
+    } catch (err) {
+      setManualError(err.response?.data?.message || err.message);
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
+  const fetchFooterLinks = async () => {
+    setFooterLoading(true);
+    try {
+      const res = await api.get('/owner/footer-links', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setFooterLinks(res.data || { email: '', website: '', linkedin: '', facebook: '', x: '' });
+    } catch (err) {
+      console.error('Failed to fetch footer links', err);
+    } finally {
+      setFooterLoading(false);
+    }
+  };
+
+  const handleSaveFooterLinks = async () => {
+    setFooterLoading(true);
+    setFooterError('');
+    setFooterSuccess('');
+    try {
+      await api.post('/owner/footer-links', footerLinks, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setFooterSuccess(isAr ? '✅ تم حفظ روابط الفوتر بنجاح!' : '✅ Footer links saved successfully!');
+      setTimeout(() => setFooterSuccess(''), 4000);
+    } catch (err) {
+      setFooterError(err.response?.data?.message || err.message);
+    } finally {
+      setFooterLoading(false);
+    }
+  };
 
   const fetchPlans = async () => {
     setPlansLoading(true);
@@ -248,6 +317,7 @@ function OwnerPanel() {
         password: newCompany.password,
         confirmPassword: newCompany.password,
         companyName: newCompany.companyName,
+        logo: newCompany.logo,
         fullName: newCompany.companyName,
         subscription: newCompany.subscription
       });
@@ -260,6 +330,7 @@ function OwnerPanel() {
         
         setNewCompany({
           companyName: '',
+          logo: '',
           email: '',
           username: '',
           password: '',
@@ -279,6 +350,7 @@ function OwnerPanel() {
   const [editingCompany, setEditingCompany] = useState(null);
   const [editForm, setEditForm] = useState({
     companyName: '',
+    logo: '',
     email: '',
     username: '',
     password: '',
@@ -289,6 +361,7 @@ function OwnerPanel() {
     setEditingCompany(company);
     setEditForm({
       companyName: company.companyName || '',
+      logo: company.company?.logo || '',
       email: company.email || '',
       username: company.username || '',
       password: '', // Leave empty for no change
@@ -450,6 +523,8 @@ function OwnerPanel() {
             { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444' },
             { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311' },
             { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
+            { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4' },
+            { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e' },
           ].map(tab => (
             <button
               key={tab.key}
@@ -519,6 +594,17 @@ function OwnerPanel() {
                     />
                   </div>
                   <div className="form-group">
+                    <label className="form-label">{isAr ? 'رابط شعار الشركة (اختياري)' : 'Company Logo URL (Optional)'}</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      value={newCompany.logo}
+                      onChange={(e) => setNewCompany({ ...newCompany, logo: e.target.value })}
+                      placeholder="https://example.com/logo.png"
+                      style={{ padding: '0.8rem' }}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">{isAr ? 'البريد الإلكتروني' : 'Email Address'}</label>
                     <input
                       type="email"
@@ -569,9 +655,9 @@ function OwnerPanel() {
                       )) : (
                         <>
                           <option value="free">{isAr ? 'مجاني' : 'Free'}</option>
-                          <option value="starter">{isAr ? 'مبتدئ' : 'Starter'}</option>
-                          <option value="professional">{isAr ? 'احترافي' : 'Professional'}</option>
-                          <option value="enterprise">{isAr ? 'مؤسسي' : 'Enterprise'}</option>
+                          <option value="starter">{isAr ? 'الذكاء الأساسي' : 'Core Intelligence'}</option>
+                          <option value="professional">{isAr ? 'الإدراك الاحترافي' : 'Pro Cognitive'}</option>
+                          <option value="enterprise">{isAr ? 'العصب المؤسسي' : 'Enterprise Neural'}</option>
                         </>
                       )}
                     </select>
@@ -1039,6 +1125,101 @@ function OwnerPanel() {
           </div>
         )}
 
+        {/* ===== FOOTER SETTINGS TAB ===== */}
+        {activeTab === 'footer' && (
+          <div className="fade-in">
+            <div className="card" style={{ padding: '2.5rem', border: '1px solid rgba(6,182,212,0.3)', boxShadow: '0 0 40px rgba(6,182,212,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🌐</div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800' }}>{isAr ? 'إعدادات الفوتر والروابط' : 'Footer & Links Settings'}</h2>
+                  <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>{isAr ? 'تعديل بيانات التواصل وروابط السوشيال ميديا في الفوتر' : 'Manage contact details and social media links in the global footer'}</p>
+                </div>
+              </div>
+
+              {footerSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{footerSuccess}</div>}
+              {footerError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>⚠️ {footerError}</div>}
+
+              {footerLoading ? (
+                <div className="animate-pulse" style={{ color: '#06b6d4', padding: '1rem' }}>{isAr ? 'جاري التحميل...' : 'Loading...'}</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '📧 البريد الإلكتروني للدعم' : '📧 Support Email'}</label>
+                    <input type="email" className="form-control" value={footerLinks.email} onChange={e => setFooterLinks({...footerLinks, email: e.target.value})} placeholder="support@domain.com" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '🌍 رابط الموقع الرسمي' : '🌍 Official Website'}</label>
+                    <input type="url" className="form-control" value={footerLinks.website} onChange={e => setFooterLinks({...footerLinks, website: e.target.value})} placeholder="https://..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '💼 رابط LinkedIn' : '💼 LinkedIn URL'}</label>
+                    <input type="url" className="form-control" value={footerLinks.linkedin} onChange={e => setFooterLinks({...footerLinks, linkedin: e.target.value})} placeholder="https://linkedin.com/in/..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '📘 رابط Facebook' : '📘 Facebook URL'}</label>
+                    <input type="url" className="form-control" value={footerLinks.facebook} onChange={e => setFooterLinks({...footerLinks, facebook: e.target.value})} placeholder="https://facebook.com/..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '🐦 رابط X (Twitter)' : '🐦 X (Twitter) URL'}</label>
+                    <input type="url" className="form-control" value={footerLinks.x} onChange={e => setFooterLinks({...footerLinks, x: e.target.value})} placeholder="https://x.com/..." />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveFooterLinks}
+                disabled={footerLoading}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '0.9rem', fontSize: '1.1rem', fontWeight: '700', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', border: 'none' }}
+              >
+                {footerLoading ? (isAr ? '⏳ جاري الحفظ...' : '⏳ Saving...') : (isAr ? '💾 حفظ إعدادات الفوتر' : '💾 Save Footer Settings')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== USER MANUAL TAB ===== */}
+        {activeTab === 'manual' && (
+          <div className="fade-in">
+            <div className="card" style={{ padding: '2.5rem', border: '1px solid rgba(244,63,94,0.3)', boxShadow: '0 0 40px rgba(244,63,94,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #f43f5e, #ec4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📖</div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800' }}>{isAr ? 'الدليل الإرشادي للعميل' : 'Client User Manual'}</h2>
+                  <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>{isAr ? 'اكتب دليل الاستخدام خطوة بخطوة للعملاء ليظهر في صفحة المساعدة' : 'Write step-by-step instructions for clients to appear in the help page'}</p>
+                </div>
+              </div>
+
+              {manualSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{manualSuccess}</div>}
+              {manualError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>⚠️ {manualError}</div>}
+
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <label className="form-label">{isAr ? 'محتوى الدليل' : 'Manual Content'}</label>
+                  <span style={{ fontSize: '0.75rem', color: '#f43f5e' }}>{isAr ? 'يدعم العناوين والمسافات' : 'Supports headers and spacing'}</span>
+                </div>
+                <textarea
+                  className="form-control"
+                  style={{ minHeight: '400px', fontSize: '1rem', lineHeight: '1.6', padding: '1.5rem', fontFamily: 'monospace' }}
+                  value={userManual.text}
+                  onChange={e => setUserManual({ text: e.target.value })}
+                  placeholder={isAr ? "## الخطوة الأولى...\n\n### إنشاء وظيفة\nقم بالدخول إلى..." : "## Step 1...\n\n### Create Job\nGo to..."}
+                ></textarea>
+              </div>
+
+              <button
+                onClick={handleSaveUserManual}
+                disabled={manualLoading}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '0.9rem', fontSize: '1.1rem', fontWeight: '700', background: 'linear-gradient(135deg, #f43f5e, #ec4899)', border: 'none', marginTop: '1rem' }}
+              >
+                {manualLoading ? (isAr ? '⏳ جاري الحفظ...' : '⏳ Saving...') : (isAr ? '💾 نشر الدليل الإرشادي' : '💾 Publish User Manual')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Edit Modal */}
         {editingCompany && (
           <div style={{
@@ -1054,6 +1235,10 @@ function OwnerPanel() {
                   <div className="form-group">
                     <label className="form-label">{isAr ? 'اسم الشركة' : 'Company Name'}</label>
                     <input type="text" className="form-control" value={editForm.companyName} onChange={e => setEditForm({...editForm, companyName: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'رابط شعار الشركة' : 'Company Logo URL'}</label>
+                    <input type="url" className="form-control" value={editForm.logo} onChange={e => setEditForm({...editForm, logo: e.target.value})} placeholder="https://..." />
                   </div>
                   <div className="form-group">
                     <label className="form-label">{isAr ? 'البريد' : 'Email'}</label>
@@ -1072,9 +1257,9 @@ function OwnerPanel() {
                         </option>
                       )) : (
                         <>
-                          <option value="starter">Starter</option>
-                          <option value="professional">Professional</option>
-                          <option value="enterprise">Enterprise</option>
+                          <option value="starter">Core Intelligence</option>
+                          <option value="professional">Pro Cognitive</option>
+                          <option value="enterprise">Enterprise Neural</option>
                         </>
                       )}
                     </select>

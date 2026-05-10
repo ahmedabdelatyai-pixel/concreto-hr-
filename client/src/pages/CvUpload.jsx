@@ -35,80 +35,108 @@ function CvUpload() {
     try {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64Data = reader.result;
-        setCvFile({ name: file.name, type: file.type, data: base64Data });
-
-        // Step 1: Analyze CV
-        setProcessingStep(isArabic ? 'جاري تحليل السيرة الذاتية...' : 'Analyzing CV...');
-        const atsResult = await analyzeCv(file);
-        setCvData(atsResult);
-
-        // Step 2: Init applicant (with UTM source)
-        setProcessingStep(isArabic ? 'جاري تسجيل طلبك...' : 'Registering your application...');
-        
-        // Read UTM params from URL
-        const utm_source = searchParams.get('utm_source') || candidate.source || 'direct';
-        const utm_medium = searchParams.get('utm_medium') || '';
-        const utm_campaign = searchParams.get('utm_campaign') || '';
-
         try {
-          const initRes = await api.post('/public/applicants/init', {
-            candidate: {
-              name: candidate.name,
-              email: candidate.email,
-              jobTitle: candidate.jobTitle
-            },
-            jobId: candidate.jobId,
-            source: utm_source,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-          });
-          if (initRes.data.applicantId) {
-            useInterviewStore.getState().setCandidateInfo({
-              applicantId: initRes.data.applicantId,
-              accessSecret: initRes.data.accessSecret
-            });
+          const base64Data = reader.result;
+          setCvFile({ name: file.name, type: file.type, data: base64Data });
+
+          // Step 1: Analyze CV
+          setProcessingStep(isArabic ? 'جاري تحليل السيرة الذاتية...' : 'Analyzing CV...');
+          let atsResult = null;
+          try {
+            atsResult = await analyzeCv(file);
+          } catch (cvErr) {
+            console.warn('CV Analysis skipped due to error:', cvErr.message);
           }
-        } catch (e) {
-          console.error('Failed to init applicant:', e.response?.data || e.message);
+          setCvData(atsResult || {
+            summary: "CV Analysis unavailable.",
+            skills: [],
+            experience_years: 0,
+            education: "",
+            technical_match: 50,
+            is_fit_for_interview: true
+          });
+
+          // Step 2: Init applicant (with UTM source)
+          setProcessingStep(isArabic ? 'جاري تسجيل طلبك...' : 'Registering your application...');
+          
+          // Read UTM params from URL
+          const utm_source = searchParams.get('utm_source') || candidate.source || 'direct';
+          const utm_medium = searchParams.get('utm_medium') || '';
+          const utm_campaign = searchParams.get('utm_campaign') || '';
+
+          const isDemoMode = useInterviewStore.getState().isDemoMode;
+
+          if (isDemoMode) {
+            useInterviewStore.getState().setCandidateInfo({
+              applicantId: 'demo-' + Date.now(),
+              accessSecret: 'demo-secret'
+            });
+          } else {
+            try {
+              const initRes = await api.post('/public/applicants/init', {
+                candidate: {
+                  name: candidate.name,
+                  email: candidate.email,
+                  jobTitle: candidate.jobTitle
+                },
+                jobId: candidate.jobId,
+                source: utm_source,
+                utm_source,
+                utm_medium,
+                utm_campaign,
+              });
+              if (initRes.data.applicantId) {
+                useInterviewStore.getState().setCandidateInfo({
+                  applicantId: initRes.data.applicantId,
+                  accessSecret: initRes.data.accessSecret
+                });
+              }
+            } catch (e) {
+              console.error('Failed to init applicant:', e.response?.data || e.message);
+            }
+          }
+
+          // Step 3: Generate structured questions (MCQ + T/F + Essay)
+          setProcessingStep(isArabic ? 'جاري توليد الأسئلة المخصصة...' : 'Generating personalized questions...');
+          const customBank = useInterviewStore.getState().candidate.customQuestions || [];
+          const targetCount = Number(useInterviewStore.getState().candidate.questionCount || 10);
+          const jobDescription = useInterviewStore.getState().candidate.jobDescription || '';
+
+          let finalQuestions = [];
+          let correctAnswers = {};
+          try {
+            const result = await generateQuestions(
+              candidate.jobTitle,
+              atsResult,
+              i18n.language,
+              customBank,
+              targetCount,
+              jobDescription
+            );
+            finalQuestions = result.questions || [];
+            correctAnswers = result.correctAnswers || {};
+          } catch (e) {
+            console.error('AI Generation failed:', e.message);
+          }
+
+          if (finalQuestions.length > 0) {
+            setQuestions(finalQuestions);
+            setCorrectAnswers(correctAnswers);
+          } else {
+            const fallback = customBank.length > 0
+              ? customBank.map(q => ({ type: 'essay', question: q.text || q, category: q.category || 'General', weight: 1 }))
+              : [{ type: 'essay', question: isArabic ? 'أخبرنا عن نفسك.' : 'Tell us about yourself.', category: 'General', weight: 1 }];
+            setQuestions(fallback);
+          }
+
+          setIsProcessing(false);
+          navigate('/interview');
+        } catch (globalErr) {
+          console.error("Critical error during upload process:", globalErr);
+          setIsProcessing(false);
+          alert(isArabic ? "حدث خطأ غير متوقع. يرجى المتابعة." : "An unexpected error occurred. Please proceed.");
+          navigate('/interview'); // Proceed anyway so they don't get stuck
         }
-
-        // Step 3: Generate structured questions (MCQ + T/F + Essay)
-        setProcessingStep(isArabic ? 'جاري توليد الأسئلة المخصصة...' : 'Generating personalized questions...');
-        const customBank = useInterviewStore.getState().candidate.customQuestions || [];
-        const targetCount = Number(useInterviewStore.getState().candidate.questionCount || 10);
-        const jobDescription = useInterviewStore.getState().candidate.jobDescription || '';
-
-        let finalQuestions = [];
-        let correctAnswers = {};
-        try {
-          const result = await generateQuestions(
-            candidate.jobTitle,
-            atsResult,
-            i18n.language,
-            customBank,
-            targetCount,
-            jobDescription
-          );
-          finalQuestions = result.questions || [];
-          correctAnswers = result.correctAnswers || {};
-        } catch (e) {
-          console.error('AI Generation failed:', e.message);
-        }
-
-        if (finalQuestions.length > 0) {
-          setQuestions(finalQuestions);
-          setCorrectAnswers(correctAnswers);
-        } else {
-          const fallback = customBank.length > 0
-            ? customBank.map(q => ({ type: 'essay', question: q.text || q, category: q.category || 'General', weight: 1 }))
-            : [{ type: 'essay', question: isArabic ? 'أخبرنا عن نفسك.' : 'Tell us about yourself.', category: 'General', weight: 1 }];
-          setQuestions(fallback);
-        }
-
-        setIsProcessing(false);
-        navigate('/interview');
       };
       reader.readAsDataURL(file);
 

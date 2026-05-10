@@ -29,7 +29,7 @@ router.get('/stats', ownerOnly, async (req, res) => {
 // GET All Companies/Admins
 router.get('/companies', ownerOnly, async (req, res) => {
   try {
-    const companies = await User.find({ role: 'admin' }).select('-password');
+    const companies = await User.find({ role: 'admin' }).select('-password').populate('company');
     res.json(companies);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -39,14 +39,24 @@ router.get('/companies', ownerOnly, async (req, res) => {
 // UPDATE a company/admin
 router.patch('/companies/:id', ownerOnly, async (req, res) => {
   try {
-    const { companyName, email, username, password, subscription } = req.body;
-    const user = await User.findById(req.params.id);
+    const { companyName, email, username, password, subscription, logo } = req.body;
+    const user = await User.findById(req.params.id).populate('company');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    if (companyName) user.companyName = companyName;
+    // Update Company details
+    if (user.company) {
+      const Company = require('../models/Company');
+      const company = await Company.findById(user.company._id);
+      if (companyName) company.name = companyName;
+      if (email) company.email = email;
+      if (subscription) company.subscription = subscription;
+      if (logo !== undefined) company.logo = logo;
+      await company.save();
+    }
+
+    // Update User details
     if (email) user.email = email;
     if (username) user.username = username;
-    if (subscription) user.subscription = subscription;
     if (password) {
       const bcrypt = require('bcrypt');
       user.password = await bcrypt.hash(password, 10);
@@ -129,6 +139,84 @@ router.get('/ai-settings/public', async (req, res) => {
     res.json({ systemPrompt: setting?.value?.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting?.value?.model || 'gemini-1.5-flash' });
   } catch (err) {
     res.status(200).json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-1.5-flash' });
+  }
+});
+
+// ============================================================
+// =========== FOOTER SETTINGS ROUTES (OWNER) ================
+// ============================================================
+
+const DEFAULT_FOOTER_LINKS = {
+  email: 'support@talentflow.com',
+  website: 'https://talentflow.com',
+  linkedin: 'https://linkedin.com',
+  facebook: 'https://facebook.com',
+  x: 'https://x.com'
+};
+
+// GET Footer Links (owner-protected)
+router.get('/footer-links', ownerOnly, async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'footer_links' });
+    if (!setting) {
+      return res.json(DEFAULT_FOOTER_LINKS);
+    }
+    res.json(setting.value);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST — Save / Update Footer Links
+router.post('/footer-links', ownerOnly, async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const links = req.body;
+    await SystemSettings.findOneAndUpdate(
+      { key: 'footer_links' },
+      { key: 'footer_links', value: links, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ message: 'Footer links saved successfully!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ============================================================
+// =========== USER MANUAL ROUTES (OWNER) =====================
+// ============================================================
+
+const DEFAULT_MANUAL = "Welcome to the TalentFlow operations manual. You can edit this text from the Owner Panel.";
+
+// GET User Manual (owner-protected)
+router.get('/user-manual', ownerOnly, async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'user_manual' });
+    if (!setting) {
+      return res.json({ text: DEFAULT_MANUAL });
+    }
+    res.json(setting.value);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST — Save / Update User Manual
+router.post('/user-manual', ownerOnly, async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const manual = req.body; // expected { text: "..." }
+    await SystemSettings.findOneAndUpdate(
+      { key: 'user_manual' },
+      { key: 'user_manual', value: manual, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ message: 'User manual saved successfully!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

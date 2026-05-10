@@ -40,10 +40,9 @@ const SAFETY_SETTINGS = [
 
 // ─── Core Gemini Caller ───────────────────────────────────────────────────────
 const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) => {
-  const { systemPrompt } = await getSystemSettings();
-  const model = 'gemini-1.5-flash'; 
-  // Using v1 (Stable) instead of v1beta
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const { systemPrompt, model } = await getSystemSettings();
+  // Using v1beta to support newer models like gemini-2.0-flash
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const response = await fetch(GEMINI_URL, {
     method: 'POST',
@@ -166,41 +165,56 @@ Return a JSON object with EXACT keys:
 };
 
 
-// ─── ✅ NEW: Generate Job Description ─────────────────────────────────────────
+// ─── ✅ NEW: Generate Job Description (Using Server Proxy) ────────────────────
 export const generateJD = async (jobTitle, department = '') => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-  if (!geminiKey && !openaiKey) return '';
-
-  const prompt = `You are a senior HR consultant writing a professional Job Description for TalentFlow recruitment platform.
-
-Write a comprehensive, professional Job Description for the following role:
-- Job Title: "${jobTitle}"
-- Department: "${department || 'General'}"
-
-The JD should include:
-1. Role Overview (2-3 sentences)
-2. Key Responsibilities (5-7 bullet points)
-3. Required Qualifications (4-5 points)
-4. Preferred Skills (3-4 points)
-
-Keep it concise, professional, and relevant to the role.
-Write in the same language as the job title (Arabic if Arabic title, English if English title).
-Return as plain text only — no markdown, no JSON.`;
-
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+  
   try {
-    const maskedKey = geminiKey ? `${geminiKey.slice(0, 5)}...${geminiKey.slice(-4)}` : 'MISSING';
-    console.log('Generating JD. Primary: Gemini. Fallback: OpenAI. Using Key:', maskedKey);
-    
-    if (geminiKey) return await callGemini(geminiKey, prompt, false, 0.6);
-    throw new Error('Gemini skipped');
+    console.log('[AI Client] Requesting JD from server proxy...');
+    const response = await fetch(`${API_BASE}/ai/generate-jd`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: jobTitle, department })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.message || 'Server AI failure');
+    }
+
+    const data = await response.json();
+    return data.text;
   } catch (error) {
-    console.warn('Gemini JD Generation failed, trying OpenAI...', error.message);
-    if (openaiKey) return await callOpenAI(openaiKey, prompt, false);
+    console.error('JD Generation Proxy Error:', error);
     return '';
   }
 };
+
+// ─── ✅ NEW: Generate Questions from Job Description ────────────────────────
+export const generateJDQuestions = async (jobTitle, department = '', description = '', count = 5, language = 'en') => {
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+  
+  try {
+    console.log('[AI Client] Requesting JD Questions from server proxy...');
+    const response = await fetch(`${API_BASE}/ai/generate-jd-questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: jobTitle, department, description, count, language })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.message || 'Server AI failure');
+    }
+
+    const data = await response.json();
+    return data.questions || [];
+  } catch (error) {
+    console.error('JD Questions Generation Error:', error);
+    throw error;
+  }
+};
+
 
 
 
@@ -330,18 +344,25 @@ Return ONLY a JSON array in this format:
     // Build correct answers map (index → answer) — never exposed to UI directly
     const correctAnswers = {};
 
-    // Format custom questions (always essay)
-    const formattedCustom = customBank.slice(0, customCount).map((q, i) => ({
-      type: 'essay',
-      question: typeof q === 'string' ? q : (q.text || q.question || ''),
-      category: q.category || 'Technical',
-      weight: q.weight || 1,
-    }));
+    // Format custom questions (preserve type if provided)
+    const formattedCustom = customBank.slice(0, customCount).map((q, i) => {
+      const type = q.type || 'essay';
+      if (q.correctAnswer !== undefined && q.correctAnswer !== null && q.correctAnswer !== '') {
+        correctAnswers[i] = String(q.correctAnswer);
+      }
+      return {
+        type,
+        question: typeof q === 'string' ? q : (q.text || q.question || ''),
+        category: q.category || 'Technical',
+        weight: q.weight || (type === 'mcq' ? 1.2 : 1),
+        choices: q.choices || [],
+      };
+    });
 
     // Format AI questions + extract correct answers
     const formattedAi = aiQuestions.slice(0, aiCount).map((q, i) => {
       const globalIndex = formattedCustom.length + i;
-      if (q.correctAnswer !== undefined && q.correctAnswer !== null) {
+      if (q.correctAnswer !== undefined && q.correctAnswer !== null && q.correctAnswer !== '') {
         correctAnswers[globalIndex] = String(q.correctAnswer);
       }
       return {

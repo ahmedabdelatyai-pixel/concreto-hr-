@@ -47,6 +47,14 @@ function EvaluationResult() {
       // Save applicant results to backend (once)
       if (!savedRef.current && evalResult && candidate.applicantId) {
         savedRef.current = true;
+        
+        const isDemoMode = useInterviewStore.getState().isDemoMode;
+        if (isDemoMode) {
+          console.log("Demo Mode: Skipping DB submission.");
+          setLoading(false);
+          return;
+        }
+
         try {
           // Calculate integrity score (100 - 10 per cheat, min 0)
           const integrityScore = Math.max(0, 100 - (cheatAttempts * 10));

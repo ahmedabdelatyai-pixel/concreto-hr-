@@ -1,10 +1,49 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import axios from 'axios';
 
 function Help() {
   const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const [expandedFaq, setExpandedFaq] = useState(0);
+  const [manualText, setManualText] = useState('');
+  const [loadingManual, setLoadingManual] = useState(true);
+
+  useEffect(() => {
+    const fetchManual = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api';
+        const res = await axios.get(`${API_URL}/public/user-manual`);
+        if (res.data && res.data.text) {
+          setManualText(res.data.text);
+        }
+      } catch (err) {
+        console.error('Failed to load user manual', err);
+      } finally {
+        setLoadingManual(false);
+      }
+    };
+    fetchManual();
+  }, []);
+
+  // Simple Markdown Parser for the manual
+  const renderMarkdown = (text) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      if (line.startsWith('### ')) {
+        return <h3 key={idx} style={{ color: 'var(--color-primary)', marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.3rem' }}>{line.replace('### ', '')}</h3>;
+      } else if (line.startsWith('## ')) {
+        return <h2 key={idx} style={{ color: '#fff', marginTop: '2rem', marginBottom: '1rem', fontSize: '1.6rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>{line.replace('## ', '')}</h2>;
+      } else if (line.startsWith('- ')) {
+        return <li key={idx} style={{ marginLeft: isAr ? '0' : '1.5rem', marginRight: isAr ? '1.5rem' : '0', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>{line.replace('- ', '')}</li>;
+      } else if (line.trim() === '') {
+        return <br key={idx} />;
+      } else {
+        return <p key={idx} style={{ color: 'rgba(255,255,255,0.7)', lineHeight: '1.8', marginBottom: '0.5rem' }}>{line}</p>;
+      }
+    });
+  };
 
   const faqs = isAr ? [
     {
@@ -89,7 +128,27 @@ function Help() {
           </p>
         </div>
 
+        {/* User Manual Section */}
+        {loadingManual ? (
+          <div className="card" style={{ marginBottom: '3rem', textAlign: 'center', padding: '3rem' }}>
+            <div className="animate-pulse" style={{ color: 'var(--color-primary)' }}>{isAr ? 'جاري تحميل الدليل...' : 'Loading manual...'}</div>
+          </div>
+        ) : manualText ? (
+          <div className="card" style={{ marginBottom: '3rem', border: '1px solid rgba(16,185,129,0.2)', backgroundColor: 'rgba(16,185,129,0.02)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>📖</span>
+              <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{isAr ? 'دليل الاستخدام (خطوة بخطوة)' : 'Operations Manual'}</h2>
+            </div>
+            <div style={{ padding: '1rem 0' }}>
+              {renderMarkdown(manualText)}
+            </div>
+          </div>
+        ) : null}
+
         {/* FAQs */}
+        <h2 style={{ fontSize: '1.8rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+          {isAr ? 'الأسئلة الشائعة' : 'Frequently Asked Questions'}
+        </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {faqs.map((faq, idx) => (
             <div 

@@ -52,6 +52,9 @@ app.use('/api/jobs', require('./routes/jobRoutes'));
 app.use('/api/public', require('./routes/publicRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/owner', require('./routes/ownerRoutes'));
+app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/integrity', require('./routes/integrityRoutes'));
+
 
 // ============== SERVER START ==============
 const PORT = process.env.PORT || 5000;

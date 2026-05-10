@@ -7,7 +7,8 @@ const { checkCvLimit, getCompanyPlanStatus } = require('../middleware/checkLimit
 router.get('/jobs', async (req, res) => {
   try {
     const jobs = await Job.find({ active: true })
-      .select('title_en title_ar description description_en description_ar department customQuestions questionCount createdAt')
+      .select('title_en title_ar description description_en description_ar department customQuestions questionCount createdAt company')
+      .populate('company', 'name logo')
       .sort({ createdAt: -1 });
 
     res.json({ jobs });
@@ -21,7 +22,8 @@ router.get('/jobs', async (req, res) => {
 router.get('/jobs/:id', async (req, res) => {
   try {
     const job = await Job.findOne({ _id: req.params.id, active: true })
-      .select('title_en title_ar description description_en description_ar department customQuestions company questionCount');
+      .select('title_en title_ar description description_en description_ar department customQuestions company questionCount')
+      .populate('company', 'name logo');
 
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
@@ -191,6 +193,54 @@ router.patch('/applicants/:id/submit', async (req, res) => {
     res.json({ message: 'Application submitted successfully', applicant });
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+// GET Global Footer Links (Public)
+router.get('/footer-links', async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'footer_links' });
+    if (!setting) {
+      return res.json({
+        email: 'support@talentflow.com',
+        website: 'https://talentflow.com',
+        linkedin: 'https://linkedin.com',
+        facebook: 'https://facebook.com',
+        x: 'https://x.com'
+      });
+    }
+    res.json(setting.value);
+  } catch (err) {
+    // Return safe fallback on error to not break the frontend
+    res.json({
+      email: '', website: '', linkedin: '', facebook: '', x: ''
+    });
+  }
+});
+
+// GET User Manual (Public)
+router.get('/user-manual', async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'user_manual' });
+    if (!setting) {
+      return res.json({ text: "مرحباً بك في دليل الاستخدام. جاري التحديث..." });
+    }
+    res.json(setting.value);
+  } catch (err) {
+    res.json({ text: "عذراً، تعذر تحميل دليل الاستخدام حالياً." });
+  }
+});
+
+// GET Public Plans
+router.get('/plans', async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const plans = await Plan.find({ active: true }).sort({ price: 1 });
+    res.json(plans);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

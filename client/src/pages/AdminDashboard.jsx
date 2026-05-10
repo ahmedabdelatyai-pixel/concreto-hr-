@@ -4,7 +4,7 @@ import { useAdminStore } from '../store/adminStore';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
-import { generateJD } from '../services/aiApi';
+import { generateJD, generateJDQuestions } from '../services/aiApi';
 
 
 function AdminDashboard() {
@@ -46,12 +46,30 @@ function AdminDashboard() {
     questionCount: 10,
     customQuestions: [] 
   });
-  const [questionInput, setQuestionInput] = useState({ text: '', category: 'Technical' });
+  const [questionInput, setQuestionInput] = useState({ text: '', category: 'Technical', type: 'essay', choices: ['', '', '', ''], correctAnswer: '' });
   const [jdGenerating, setJdGenerating] = useState(false); // ✅ AI JD helper state
+  const [qGenerating, setQGenerating] = useState(false); // ✅ AI Questions helper state
+  const [qGenCount, setQGenCount] = useState(5);
   const [serverStatus, setServerStatus] = useState('checking');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterJob, setFilterJob] = useState('all');
+
+  // ✅ Integrity Logs State
+  const [integrityLogs, setIntegrityLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const fetchIntegrityLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const res = await api.get('/integrity');
+      setIntegrityLogs(res.data.logs || []);
+    } catch (err) {
+      console.error("Error fetching integrity logs:", err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -73,6 +91,12 @@ function AdminDashboard() {
       fetchApplicants();
     }
   }, [isUserLoggedIn, fetchJobs, fetchApplicants]);
+
+  useEffect(() => {
+    if (activeTab === 'integrity') {
+      fetchIntegrityLogs();
+    }
+  }, [activeTab]);
 
   const handleDownloadPDF = () => {
     const element = reportRef.current;
@@ -135,6 +159,32 @@ function AdminDashboard() {
     }
   };
 
+  const handleGenerateQuestions = async () => {
+    const title = (isAr ? (newJob.title_ar || newJob.title_en) : (newJob.title_en || newJob.title_ar))?.trim();
+    if (!title || !newJob.description?.trim()) {
+      alert(isAr ? 'الرجاء إدخال المسمى والوصف الوظيفي أولاً.' : 'Please enter the job title and description first.');
+      return;
+    }
+
+    setQGenerating(true);
+    try {
+      const questions = await generateJDQuestions(title, newJob.department, newJob.description, qGenCount, i18n.language);
+      if (questions && questions.length > 0) {
+        setNewJob(prev => ({
+          ...prev,
+          customQuestions: [...prev.customQuestions, ...questions]
+        }));
+      } else {
+        throw new Error('No questions returned');
+      }
+    } catch (err) {
+      console.error('Questions Gen Error:', err);
+      alert(isAr ? 'فشل توليد الأسئلة. حاول مجدداً.' : 'Failed to generate questions. Please try again.');
+    } finally {
+      setQGenerating(false);
+    }
+  };
+
 
   const handleLogout = () => {
 
@@ -160,7 +210,10 @@ function AdminDashboard() {
         questionCount: parseInt(newJob.questionCount) || 10
       };
       if (questionInput.text.trim()) {
-        jobToSave.customQuestions = [...jobToSave.customQuestions, { ...questionInput }];
+        let q = { ...questionInput };
+        if (q.type !== 'mcq') delete q.choices;
+        if (q.type === 'essay') delete q.correctAnswer;
+        jobToSave.customQuestions = [...jobToSave.customQuestions, q];
       }
 
       if (editingJob) {
@@ -170,7 +223,7 @@ function AdminDashboard() {
       }
 
       setNewJob({ title_en: '', title_ar: '', department: '', description: '', questionCount: 10, customQuestions: [] });
-      setQuestionInput({ text: '', category: 'Technical' });
+      setQuestionInput({ text: '', category: 'Technical', type: 'essay', choices: ['', '', '', ''], correctAnswer: '' });
       setShowAddJob(false);
       setEditingJob(null);
     } catch (err) {
@@ -198,11 +251,14 @@ function AdminDashboard() {
 
   const addQuestionToNewJob = () => {
     if (!questionInput.text) return;
+    let q = { ...questionInput };
+    if (q.type !== 'mcq') delete q.choices;
+    if (q.type === 'essay') delete q.correctAnswer;
     setNewJob({
       ...newJob,
-      customQuestions: [...newJob.customQuestions, { ...questionInput }]
+      customQuestions: [...newJob.customQuestions, q]
     });
-    setQuestionInput({ text: '', category: 'Technical' });
+    setQuestionInput({ text: '', category: 'Technical', type: 'essay', choices: ['', '', '', ''], correctAnswer: '' });
   };
 
   const removeQuestionFromNewJob = (idx) => {
@@ -210,6 +266,18 @@ function AdminDashboard() {
       ...newJob,
       customQuestions: newJob.customQuestions.filter((_, i) => i !== idx)
     });
+  };
+
+  const editQuestionInNewJob = (idx) => {
+    const q = newJob.customQuestions[idx];
+    setQuestionInput({
+      text: q.text || q.question || '',
+      category: q.category || 'Technical',
+      type: q.type || 'essay',
+      choices: q.choices && q.choices.length === 4 ? q.choices : ['', '', '', ''],
+      correctAnswer: q.correctAnswer || ''
+    });
+    removeQuestionFromNewJob(idx);
   };
 
   const getJobTitle = (jobId) => {
@@ -535,7 +603,7 @@ function AdminDashboard() {
                           cursor: jdGenerating ? 'not-allowed' : 'pointer', transition: 'all 0.2s'
                         }}
                       >
-                        {jdGenerating ? '⏳ ...' : '✨ ' + t('AI JD Helper', 'مساعد الـ AI') + ' (v2.1)'}
+                        {jdGenerating ? '⏳ ...' : '✨ ' + t('AI JD Helper', 'مساعد الـ AI') + ' (v3.0 Enterprise)'}
                       </button>
                     </div>
                     <textarea
@@ -556,33 +624,106 @@ function AdminDashboard() {
 
                   {/* Question Bank Input */}
                   <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <label className="form-label">📚 {t('Add Custom Questions to Bank (Optional)', 'إضافة أسئلة مخصصة (اختياري)')}</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>📚 {t('Custom Questions Bank', 'بنك الأسئلة المخصصة')}</label>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input type="number" min="1" max="20" className="form-control" style={{ width: '60px', padding: '0.3rem' }} value={qGenCount} onChange={e => setQGenCount(Number(e.target.value))} />
+                        <button type="button" onClick={handleGenerateQuestions} disabled={qGenerating} style={{ padding: '0.3rem 0.9rem', fontSize: '0.78rem', fontWeight: '700', background: qGenerating ? 'rgba(16,185,129,0.1)' : 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: '6px', color: '#fff', cursor: qGenerating ? 'not-allowed' : 'pointer' }}>
+                          {qGenerating ? '⏳ ...' : '✨ ' + t('Generate from JD', 'توليد من الوصف الوظيفي')}
+                        </button>
+                      </div>
+                    </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                       <input 
                         type="text" className="form-control" placeholder={t('Enter question...', 'اكتب السؤال...')} 
                         value={questionInput.text} onChange={e => setQuestionInput({...questionInput, text: e.target.value})}
-                        style={{ flex: 3 }}
+                        style={{ flex: 3, minWidth: '200px' }}
                       />
                       <select 
-                        className="form-control" style={{ flex: 1 }}
+                        className="form-control" style={{ flex: 1, minWidth: '100px' }}
                         value={questionInput.category} onChange={e => setQuestionInput({...questionInput, category: e.target.value})}
                       >
                         <option value="Technical">{t('Technical', 'تقني')}</option>
                         <option value="Behavioral">{t('Behavioral', 'سلوكي')}</option>
                         <option value="Hybrid">{t('Hybrid', 'مختلط')}</option>
                       </select>
+                      <select 
+                        className="form-control" style={{ flex: 1, minWidth: '100px' }}
+                        value={questionInput.type} onChange={e => setQuestionInput({...questionInput, type: e.target.value})}
+                      >
+                        <option value="essay">{t('Essay', 'مقالي')}</option>
+                        <option value="mcq">{t('MCQ', 'اختيارات')}</option>
+                        <option value="truefalse">{t('True/False', 'صح/خطأ')}</option>
+                      </select>
                       <button type="button" className="btn btn-primary" onClick={addQuestionToNewJob}>{t('Add', 'إضافة')}</button>
                     </div>
+
+                    {questionInput.type === 'mcq' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                        {[0, 1, 2, 3].map(i => (
+                          <input key={i} type="text" className="form-control" placeholder={`${t('Choice', 'الخيار')} ${i+1}`}
+                            value={questionInput.choices[i]}
+                            onChange={e => {
+                              const newChoices = [...questionInput.choices];
+                              newChoices[i] = e.target.value;
+                              setQuestionInput({...questionInput, choices: newChoices, correctAnswer: i === 0 && !questionInput.correctAnswer ? e.target.value : questionInput.correctAnswer});
+                            }}
+                          />
+                        ))}
+                        <select className="form-control" style={{ gridColumn: 'span 2' }} value={questionInput.correctAnswer} onChange={e => setQuestionInput({...questionInput, correctAnswer: e.target.value})}>
+                          <option value="">{t('Select Correct Answer', 'اختر الإجابة الصحيحة')}</option>
+                          {questionInput.choices.map((c, i) => c ? <option key={i} value={c}>{c}</option> : null)}
+                        </select>
+                      </div>
+                    )}
                     
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {questionInput.type === 'truefalse' && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        <select className="form-control" value={questionInput.correctAnswer} onChange={e => setQuestionInput({...questionInput, correctAnswer: e.target.value})}>
+                          <option value="">{t('Select Correct Answer', 'اختر الإجابة الصحيحة')}</option>
+                          <option value="true">{t('True', 'صح')}</option>
+                          <option value="false">{t('False', 'خطأ')}</option>
+                        </select>
+                      </div>
+                    )}
+                    
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
                       {newJob.customQuestions.map((q, i) => (
                         <div key={i} style={{ 
-                          padding: '0.4rem 0.8rem', backgroundColor: 'var(--color-bg)', borderRadius: '4px', 
-                          border: '1px solid var(--color-border)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px'
+                          padding: '0.5rem 0.8rem', backgroundColor: 'var(--color-bg)', borderRadius: '6px', 
+                          border: '1px solid var(--color-border)', fontSize: '0.85rem', width: '100%'
                         }}>
-                          <span>[{q.category}] {q.text}</span>
-                          <button type="button" onClick={() => removeQuestionFromNewJob(i)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✕</button>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontWeight: '600' }}>
+                              <span style={{ color: 'var(--color-primary)', marginRight: '5px' }}>[{q.type === 'essay' ? '📝' : q.type === 'mcq' ? '🔘' : '✅'}]</span>
+                              {q.text || q.question}
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <button type="button" onClick={() => editQuestionInNewJob(i)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '1rem' }} title={t('Edit', 'تعديل')}>✏️</button>
+                              <button type="button" onClick={() => removeQuestionFromNewJob(i)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }} title={t('Delete', 'حذف')}>✕</button>
+                            </div>
+                          </div>
+                          
+                          {q.type === 'mcq' && q.choices && (
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                              {q.choices.map((c, idx) => (
+                                <span key={idx} style={{ padding: '2px 6px', backgroundColor: c === q.correctAnswer ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)', color: c === q.correctAnswer ? '#10b981' : 'inherit', borderRadius: '4px', border: c === q.correctAnswer ? '1px solid #10b981' : '1px solid transparent' }}>
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {q.type === 'truefalse' && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#10b981' }}>
+                              {t('Answer:', 'الإجابة:')} {String(q.correctAnswer).toLowerCase() === 'true' ? t('True', 'صح') : t('False', 'خطأ')}
+                            </div>
+                          )}
+                          
+                          <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                            {t('Category:', 'التصنيف:')} {q.category}
+                          </div>
                         </div>
                       ))}
                     </div>

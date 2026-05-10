@@ -1,11 +1,29 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 function Footer() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
   const isAr = i18n.language === 'ar';
   const currentYear = new Date().getFullYear();
+  const [footerLinks, setFooterLinks] = useState({
+    email: '', website: '', linkedin: '', facebook: '', x: ''
+  });
+
+  useEffect(() => {
+    const fetchLinks = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api';
+        const res = await axios.get(`${API_URL}/public/footer-links`);
+        if (res.data) setFooterLinks(res.data);
+      } catch (err) {
+        console.error('Failed to fetch footer links:', err);
+      }
+    };
+    fetchLinks();
+  }, []);
 
   return (
     <footer style={{
@@ -36,10 +54,9 @@ function Footer() {
             </h4>
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {[
-                { label: isAr ? 'الميزات' : 'Features', action: () => { if(window.location.pathname === '/') { document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); } else { navigate('/#features'); } } },
-                { label: isAr ? 'الأسعار' : 'Pricing', action: () => { if(window.location.pathname === '/') { document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }); } else { navigate('/#pricing'); } } },
-                { label: isAr ? 'الأسئلة الشائعة' : 'FAQ', action: () => navigate('/help') },
-                { label: isAr ? 'المساعدة' : 'Help', action: () => navigate('/help') }
+                { label: isAr ? 'محرك الذكاء الاصطناعي' : 'AI Engine', action: () => { if(window.location.pathname === '/') { document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); } else { navigate('/#features'); } } },
+                { label: isAr ? 'مختبر النزاهة' : 'Integrity Lab', action: () => { if(window.location.pathname === '/') { document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); } else { navigate('/#features'); } } },
+                { label: isAr ? 'تحليلات السلوك' : 'Behavioral Analytics', action: () => { if(window.location.pathname === '/') { document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); } else { navigate('/#features'); } } }
               ].map((item, i) => (
                 <li key={i} style={{ marginBottom: '0.5rem' }}>
                   <button
@@ -71,10 +88,8 @@ function Footer() {
             </h4>
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {[
-                { label: isAr ? 'حول' : 'About', action: () => navigate('/') },
-                { label: isAr ? 'المدونة' : 'Blog', action: () => {} },
-                { label: isAr ? 'الأخبار' : 'News', action: () => {} },
-                { label: isAr ? 'الوظائف' : 'Careers', action: () => {} }
+                { label: isAr ? 'الرؤية' : 'Vision', action: () => navigate('/') },
+                { label: isAr ? 'مركز المساعدة' : 'Support Hub', action: () => navigate('/help') }
               ].map((item, i) => (
                 <li key={i} style={{ marginBottom: '0.5rem' }}>
                   <button
@@ -106,10 +121,8 @@ function Footer() {
             </h4>
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {[
-                { label: isAr ? 'شروط الاستخدام' : 'Terms of Service', to: '/terms' },
-                { label: isAr ? 'سياسة الخصوصية' : 'Privacy Policy', to: '/privacy' },
-                { label: isAr ? 'سياسة الأمان' : 'Security', to: '/' },
-                { label: isAr ? 'نموذج الاتفاقية' : 'Agreement', to: '/' }
+                { label: isAr ? 'درع الخصوصية' : 'Privacy Shield', to: '/privacy' },
+                { label: isAr ? 'حوكمة البيانات' : 'Data Governance', to: '/terms' }
               ].map((item, i) => (
                 <li key={i} style={{ marginBottom: '0.5rem' }}>
                   <button
@@ -144,18 +157,29 @@ function Footer() {
             </p>
 
             {/* Social Links */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              {footerLinks.email && (
+                <a href={`mailto:${footerLinks.email}`} style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: '0.9rem' }}>
+                  📧 {footerLinks.email}
+                </a>
+              )}
+              {footerLinks.website && (
+                <a href={footerLinks.website} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: '0.9rem' }}>
+                  🌍 {isAr ? 'الموقع' : 'Website'}
+                </a>
+              )}
               {[
-                { label: 'Twitter', icon: '𝕏', link: '#' },
-                { label: 'LinkedIn', icon: 'in', link: '#' },
-                { label: 'Facebook', icon: 'f', link: '#' }
-              ].map((social, i) => (
+                { label: 'X (Twitter)', icon: '𝕏', link: footerLinks.x },
+                { label: 'LinkedIn', icon: 'in', link: footerLinks.linkedin },
+                { label: 'Facebook', icon: 'f', link: footerLinks.facebook }
+              ].filter(s => s.link).map((social, i) => (
                 <a
                   key={i}
                   href={social.link}
+                  target="_blank" rel="noopener noreferrer"
                   style={{
-                    width: '40px',
-                    height: '40px',
+                    width: '35px',
+                    height: '35px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -164,7 +188,7 @@ function Footer() {
                     color: 'rgba(255,255,255,0.7)',
                     textDecoration: 'none',
                     transition: 'all 0.3s',
-                    fontSize: '1rem'
+                    fontSize: '0.9rem'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
