@@ -116,6 +116,10 @@ function OwnerPanel() {
   const [manualSuccess, setManualSuccess] = useState('');
   const [manualError, setManualError] = useState('');
 
+  // Subscription Requests State
+  const [subRequests, setSubRequests] = useState([]);
+  const [subReqLoading, setSubReqLoading] = useState(false);
+
   const [newCompany, setNewCompany] = useState({
     companyName: '',
     logo: '',
@@ -135,8 +139,40 @@ function OwnerPanel() {
       fetchPlans();
       fetchFooterLinks();
       fetchUserManual();
+      fetchSubRequests();
     }
   }, [isAuthenticated]);
+
+  const fetchSubRequests = async () => {
+    setSubReqLoading(true);
+    try {
+      const res = await api.get('/owner/subscription-requests', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setSubRequests(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch subscription requests', err);
+    } finally {
+      setSubReqLoading(false);
+    }
+  };
+
+  const handleUpdateSubStatus = async (id, newStatus) => {
+    try {
+      await api.patch(`/owner/subscription-requests/${id}/status`, { status: newStatus }, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      fetchSubRequests();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  const handleDeleteSubRequest = async (id) => {
+    if (!window.confirm(isAr ? 'هل أنت متأكد من حذف هذا الطلب؟' : 'Are you sure you want to delete this request?')) return;
+    try {
+      await api.delete(`/owner/subscription-requests/${id}`, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      fetchSubRequests();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete request');
+    }
+  };
 
   const fetchUserManual = async () => {
     setManualLoading(true);
@@ -522,6 +558,7 @@ function OwnerPanel() {
             { key: 'companies', label: isAr ? '🏢 إدارة الشركات' : '🏢 Companies', color: '#10b981' },
             { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444' },
             { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311' },
+            { key: 'requests', label: isAr ? '📩 طلبات الاشتراك' : '📩 Requests', color: '#3b82f6' },
             { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
             { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4' },
             { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e' },
@@ -1217,6 +1254,108 @@ function OwnerPanel() {
                 {manualLoading ? (isAr ? '⏳ جاري الحفظ...' : '⏳ Saving...') : (isAr ? '💾 نشر الدليل الإرشادي' : '💾 Publish User Manual')}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ===== SUBSCRIPTION REQUESTS TAB ===== */}
+        {activeTab === 'requests' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{isAr ? '📩 طلبات الاشتراك الجديدة' : '📩 Subscription Requests'}</h3>
+                <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                  {isAr ? 'قائمة بالعملاء المحتملين الذين طلبوا الاشتراك من الصفحة الرئيسية' : 'List of potential clients who requested a subscription from the landing page'}
+                </p>
+              </div>
+              <button
+                className="btn btn-outline"
+                onClick={fetchSubRequests}
+                disabled={subReqLoading}
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+              >
+                {subReqLoading ? '...' : (isAr ? '🔄 تحديث' : '🔄 Refresh')}
+              </button>
+            </div>
+
+            {subReqLoading ? (
+              <div className="animate-pulse" style={{ color: '#3b82f6', padding: '2rem', textAlign: 'center' }}>
+                {isAr ? 'جاري تحميل الطلبات...' : 'Loading requests...'}
+              </div>
+            ) : subRequests.length === 0 ? (
+              <div className="card text-center" style={{ padding: '3rem' }}>
+                <p className="text-muted">
+                  {isAr ? 'لا توجد طلبات اشتراك جديدة حتى الآن.' : 'No subscription requests yet.'}
+                </p>
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--color-border)', fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)' }}>
+                      <th style={{ padding: '1rem', textAlign: isAr ? 'right' : 'left' }}>{isAr ? 'تاريخ الطلب' : 'Date'}</th>
+                      <th style={{ padding: '1rem', textAlign: isAr ? 'right' : 'left' }}>{isAr ? 'العميل' : 'Client'}</th>
+                      <th style={{ padding: '1rem', textAlign: isAr ? 'right' : 'left' }}>{isAr ? 'بيانات التواصل' : 'Contact Info'}</th>
+                      <th style={{ padding: '1rem', textAlign: 'center' }}>{isAr ? 'الباقة' : 'Plan'}</th>
+                      <th style={{ padding: '1rem', textAlign: 'center' }}>{isAr ? 'الحالة' : 'Status'}</th>
+                      <th style={{ padding: '1rem', textAlign: 'center' }}>{isAr ? 'إجراء' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subRequests.map(req => (
+                      <tr key={req._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <td style={{ padding: '1rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
+                          {new Date(req.createdAt).toLocaleDateString()} <br/>
+                          <span style={{ fontSize: '0.75rem' }}>{new Date(req.createdAt).toLocaleTimeString()}</span>
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ fontWeight: '700', fontSize: '1rem' }}>{req.clientName}</div>
+                          <div style={{ fontSize: '0.85rem', color: '#10b981' }}>🏢 {req.companyName}</div>
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>📧 <a href={`mailto:${req.email}`} style={{ color: '#3b82f6', textDecoration: 'none' }}>{req.email}</a></div>
+                          <div style={{ fontSize: '0.85rem' }}>📞 <a href={`https://wa.me/${req.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" style={{ color: '#10b981', textDecoration: 'none' }}>{req.phone}</a></div>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '800', background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}>
+                            {req.planRequested}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <select 
+                            value={req.status} 
+                            onChange={(e) => handleUpdateSubStatus(req._id, e.target.value)}
+                            style={{
+                              padding: '5px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
+                              backgroundColor: req.status === 'pending' ? 'rgba(252,163,17,0.1)' : (req.status === 'contacted' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)'),
+                              color: req.status === 'pending' ? '#fca311' : (req.status === 'contacted' ? '#3b82f6' : '#10b981'),
+                              border: 'none', outline: 'none'
+                            }}
+                          >
+                            <option value="pending" style={{ background: '#050a14', color: '#fff' }}>{isAr ? 'قيد الانتظار' : 'Pending'}</option>
+                            <option value="contacted" style={{ background: '#050a14', color: '#fff' }}>{isAr ? 'تم التواصل' : 'Contacted'}</option>
+                            <option value="converted" style={{ background: '#050a14', color: '#fff' }}>{isAr ? 'تم الاشتراك' : 'Converted'}</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleDeleteSubRequest(req._id)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.target.style.transform = 'scale(1.2)'}
+                            onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                            title={isAr ? 'حذف الطلب' : 'Delete Request'}
+                          >
+                            🗑
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

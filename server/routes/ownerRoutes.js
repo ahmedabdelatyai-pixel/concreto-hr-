@@ -221,6 +221,53 @@ router.post('/user-manual', ownerOnly, async (req, res) => {
 });
 
 // ============================================================
+// =========== SUBSCRIPTION REQUESTS (OWNER) ==================
+// ============================================================
+
+// GET all subscription requests
+router.get('/subscription-requests', ownerOnly, async (req, res) => {
+  try {
+    const SubscriptionRequest = require('../models/SubscriptionRequest');
+    const requests = await SubscriptionRequest.find().sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH status of a request
+router.patch('/subscription-requests/:id/status', ownerOnly, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['pending', 'contacted', 'converted'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+    const SubscriptionRequest = require('../models/SubscriptionRequest');
+    const reqDoc = await SubscriptionRequest.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!reqDoc) return res.status(404).json({ message: 'Request not found' });
+    res.json({ message: 'Status updated successfully', request: reqDoc });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE a request
+router.delete('/subscription-requests/:id', ownerOnly, async (req, res) => {
+  try {
+    const SubscriptionRequest = require('../models/SubscriptionRequest');
+    const reqDoc = await SubscriptionRequest.findByIdAndDelete(req.params.id);
+    if (!reqDoc) return res.status(404).json({ message: 'Request not found' });
+    res.json({ message: 'Request deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ============================================================
 // =========== OWNER: ALL JOBS MANAGEMENT (No company filter) ==
 // ============================================================
 

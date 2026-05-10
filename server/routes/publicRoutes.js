@@ -244,5 +244,26 @@ router.get('/plans', async (req, res) => {
   }
 });
 
+// POST Subscription Request
+router.post('/subscription-request', async (req, res) => {
+  try {
+    const { clientName, companyName, email, phone, planRequested } = req.body;
+    
+    if (!clientName || !companyName || !email || !phone || !planRequested) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const SubscriptionRequest = require('../models/SubscriptionRequest');
+    const newReq = new SubscriptionRequest({
+      clientName, companyName, email, phone, planRequested
+    });
+    
+    await newReq.save();
+    res.status(201).json({ message: 'Request submitted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
 
