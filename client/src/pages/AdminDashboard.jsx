@@ -535,7 +535,7 @@ function AdminDashboard() {
                           cursor: jdGenerating ? 'not-allowed' : 'pointer', transition: 'all 0.2s'
                         }}
                       >
-                        {jdGenerating ? '⏳ ...' : '✨ ' + t('AI JD Helper', 'مساعد الـ AI')}
+                        {jdGenerating ? '⏳ ...' : '✨ ' + t('AI JD Helper', 'مساعد الـ AI') + ' (v2.1)'}
                       </button>
                     </div>
                     <textarea

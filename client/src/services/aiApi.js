@@ -42,7 +42,8 @@ const SAFETY_SETTINGS = [
 const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) => {
   const { systemPrompt } = await getSystemSettings();
   const model = 'gemini-1.5-flash'; 
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // Using v1 (Stable) instead of v1beta
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(GEMINI_URL, {
     method: 'POST',
@@ -73,6 +74,33 @@ const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) =>
   return jsonMode ? JSON.parse(raw) : raw;
 };
 
+// ─── OpenAI Caller (Fallback) ────────────────────────────────────────────────
+const callOpenAI = async (apiKey, prompt, jsonMode = true) => {
+  const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a Senior HR Director. Provide expert analysis.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    }),
+  });
+
+  const data = await response.json();
+  if (data.error) throw new Error(`OpenAI Error: ${data.error.message}`);
+  const raw = data.choices[0].message.content;
+  return jsonMode ? JSON.parse(raw) : raw;
+};
+
+
 // ─── Extract PDF Text ─────────────────────────────────────────────────────────
 const extractPdfText = async (file) => {
   try {
@@ -98,8 +126,10 @@ const extractPdfText = async (file) => {
 
 // ─── CV Analysis ──────────────────────────────────────────────────────────────
 export const analyzeCv = async (file) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return null;
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  
+  if (!geminiKey && !openaiKey) return null;
 
   let pdfText = null;
   if (file.type === 'application/pdf') {
@@ -126,17 +156,22 @@ Return a JSON object with EXACT keys:
 }`;
 
   try {
-    return await callGemini(apiKey, prompt, true, 0.3);
-  } catch (error) {
-    console.error('CV Analysis Error:', error);
+    if (geminiKey) return await callGemini(geminiKey, prompt, true, 0.3);
+    throw new Error('Gemini skipped');
+  } catch (err) {
+    console.warn('Gemini CV Analysis failed, trying OpenAI...', err.message);
+    if (openaiKey) return await callOpenAI(openaiKey, prompt, true);
     return null;
   }
 };
 
+
 // ─── ✅ NEW: Generate Job Description ─────────────────────────────────────────
 export const generateJD = async (jobTitle, department = '') => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return '';
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+
+  if (!geminiKey && !openaiKey) return '';
 
   const prompt = `You are a senior HR consultant writing a professional Job Description for TalentFlow recruitment platform.
 
@@ -155,15 +190,18 @@ Write in the same language as the job title (Arabic if Arabic title, English if 
 Return as plain text only — no markdown, no JSON.`;
 
   try {
-    console.log('Generating JD for:', jobTitle);
-    const draft = await callGemini(apiKey, prompt, false, 0.6);
-    if (!draft) throw new Error('Gemini returned empty JD');
-    return draft;
+    const maskedKey = geminiKey ? `${geminiKey.slice(0, 5)}...${geminiKey.slice(-4)}` : 'MISSING';
+    console.log('Generating JD. Primary: Gemini. Fallback: OpenAI. Using Key:', maskedKey);
+    
+    if (geminiKey) return await callGemini(geminiKey, prompt, false, 0.6);
+    throw new Error('Gemini skipped');
   } catch (error) {
-    console.error('JD Generation Service Error:', error);
-    throw error; // Rethrow to be caught by UI
+    console.warn('Gemini JD Generation failed, trying OpenAI...', error.message);
+    if (openaiKey) return await callOpenAI(openaiKey, prompt, false);
+    return '';
   }
 };
+
 
 
 // ─── ✅ REBUILT: Generate Structured Questions (MCQ + T/F + Essay) ─────────────
@@ -180,12 +218,8 @@ Return as plain text only — no markdown, no JSON.`;
  * - weight: number
  */
 export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10, jobDescription = '') => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (!apiKey) {
-    console.warn('No Gemini API key. Using custom bank + fallback.');
-    return { questions: buildFallbackQuestions(customBank, targetCount, language), correctAnswers: {} };
-  }
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
   const isAr = language === 'ar';
   const cvContext = cvData
@@ -199,6 +233,7 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
   const customCount = Math.min(customBank.length, targetCount);
   // AI fills the rest: always generate 10 structured questions (3 T/F + 4 MCQ + 3 Essay)
   const aiCount = Math.max(0, targetCount - customCount);
+
 
   // Build structured request
   const structuredPrompt = isAr ? `
@@ -279,10 +314,18 @@ Return ONLY a JSON array in this format:
 }]`;
 
   try {
-    const aiResult = await callGemini(apiKey, structuredPrompt, true, 0.7);
-    let aiQuestions = Array.isArray(aiResult) ? aiResult
-      : (Array.isArray(aiResult?.questions) ? aiResult.questions
-        : Object.values(aiResult).find(v => Array.isArray(v)) || []);
+    let aiQuestions = [];
+    if (geminiKey) {
+      const aiResult = await callGemini(geminiKey, structuredPrompt, true, 0.7);
+      aiQuestions = Array.isArray(aiResult) ? aiResult
+        : (Array.isArray(aiResult?.questions) ? aiResult.questions
+          : Object.values(aiResult).find(v => Array.isArray(v)) || []);
+    } else if (openaiKey) {
+      const aiResult = await callOpenAI(openaiKey, structuredPrompt, true);
+      aiQuestions = Array.isArray(aiResult) ? aiResult
+        : (Array.isArray(aiResult?.questions) ? aiResult.questions
+          : Object.values(aiResult).find(v => Array.isArray(v)) || []);
+    }
 
     // Build correct answers map (index → answer) — never exposed to UI directly
     const correctAnswers = {};
@@ -420,10 +463,8 @@ export const evaluateInterview = async (
   // ── Step 2: AI evaluates essay questions only ──
   const essayAnswers = scoredAnswers.filter(a => a.type === 'essay');
 
-  if (!apiKey) {
-    const fallback = fallbackMockEvaluation(answers, questionCategories);
-    return { ...fallback, mcq_score: mcqScore, mcqCorrect, mcqTotal };
-  }
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
   const formattedEssays = essayAnswers.map((a, i) => {
     const category = questionCategories[answers.indexOf(a)] || 'Technical';
@@ -442,8 +483,6 @@ JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not 
 
 SCORING RULES:
 - Score each essay 0-10 based on STAR method, depth, and relevance
-- Penalize generic or vague answers (-2 to -4 points)
-- Penalize gibberish/random text (score = 0)
 - Be strict: only 9-10 for truly impressive, detailed answers
 
 MANDATORY OUTPUT (raw JSON only):
@@ -456,14 +495,22 @@ MANDATORY OUTPUT (raw JSON only):
   "personality_reasoning": "<explanation>",
   "total_score": <sum of the three above>,
   "disc": { "d": <0-100>, "i": <0-100>, "s": <0-100>, "c": <0-100> },
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-  "weaknesses": ["<weakness 1>", "<weakness 2>"],
-  "recommendation": "<Strong Fit | Potential Fit | Not Fit | Invalid Answers>",
-  "gap_analysis": "<A smart 2-3 sentence paragraph about skills the candidate claimed in CV but showed weakness in the interview answers. Be specific. Write in the same language as answers.>"
+  "strengths": ["..."],
+  "weaknesses": ["..."],
+  "recommendation": "<Strong Fit | Potential Fit | Not Fit>",
+  "gap_analysis": "<Specific gaps found>"
 }`;
 
   try {
-    const result = await callGemini(apiKey, prompt, true, 0.1);
+    let result = null;
+    if (geminiKey) {
+      result = await callGemini(geminiKey, prompt, true, 0.1);
+    } else if (openaiKey) {
+      result = await callOpenAI(openaiKey, prompt, true);
+    } else {
+      throw new Error('No AI key for evaluation');
+    }
+
     // Blend MCQ score with essay evaluation
     const blendedTotal = Math.min(100, Math.round(
       (result.total_score * 0.6) + (mcqScore * 1.0)
@@ -486,12 +533,26 @@ MANDATORY OUTPUT (raw JSON only):
     };
 
 
-  } catch (error) {
-    console.error('Gemini AI Evaluation Error:', error);
+  } catch (err) {
+    console.warn('Evaluation failed, trying fallback...', err.message);
+    if (openaiKey && geminiKey) {
+      try {
+        const result = await callOpenAI(openaiKey, prompt, true);
+        const blendedTotal = Math.min(100, Math.round((result.total_score * 0.6) + (mcqScore * 1.0)));
+        let recommendation = result.recommendation;
+        if (blendedTotal >= 80) recommendation = 'Strong Fit';
+        else if (blendedTotal >= 60) recommendation = 'Potential Fit';
+        else if (blendedTotal > 0) recommendation = 'Not Fit';
+        return { ...result, total_score: blendedTotal, recommendation, mcq_score: mcqScore, mcqCorrect, mcqTotal, answers: scoredAnswers };
+      } catch (oerr) {
+        console.error('OpenAI evaluation fallback failed:', oerr);
+      }
+    }
     const fallback = fallbackMockEvaluation(answers, questionCategories);
     return { ...fallback, mcq_score: mcqScore, mcqCorrect, mcqTotal };
   }
 };
+
 
 // ─── Gibberish Detection ──────────────────────────────────────────────────────
 const isGibberish = (text) => {
