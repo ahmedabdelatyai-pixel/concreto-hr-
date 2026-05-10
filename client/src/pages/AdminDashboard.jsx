@@ -6,6 +6,22 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { generateJD, generateJDQuestions } from '../services/aiApi';
 
+const LockedFeatureBadge = ({ title, isAr }) => (
+  <div style={{
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(5, 10, 20, 0.7)', backdropFilter: 'blur(4px)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    zIndex: 10, borderRadius: 'inherit'
+  }}>
+    <div style={{
+      background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
+      padding: '0.75rem 1.5rem', borderRadius: '30px', color: '#ef4444',
+      fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px'
+    }}>
+      🔒 {isAr ? 'يجب الترقية لفتح الميزة:' : 'Upgrade Required:'} {title}
+    </div>
+  </div>
+);
 
 function AdminDashboard() {
   const { i18n } = useTranslation();
@@ -24,6 +40,9 @@ function AdminDashboard() {
   
   // Check if user is authenticated either way
   const isUserLoggedIn = isAuthenticated || isAdminLoggedIn;
+  
+  // Extract features for UI locking
+  const companyFeatures = company?.features || [];
   
   const jobs = useAdminStore(state => state.jobs);
   const addJob = useAdminStore(state => state.addJob);
@@ -1028,8 +1047,18 @@ function AdminDashboard() {
                     📄 {t('Download Original CV', 'تحميل السيرة الذاتية')}
                   </button>
                 )}
-                <button className="btn btn-primary" onClick={handleDownloadPDF} style={{ padding: '0.5rem 1rem' }}>
-                  📥 {t('Download PDF Report', 'تحميل تقرير PDF')}
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleDownloadPDF} 
+                  disabled={!companyFeatures.includes('pdf_reports')}
+                  style={{ 
+                    padding: '0.5rem 1rem',
+                    opacity: companyFeatures.includes('pdf_reports') ? 1 : 0.5,
+                    cursor: companyFeatures.includes('pdf_reports') ? 'pointer' : 'not-allowed'
+                  }}
+                  title={!companyFeatures.includes('pdf_reports') ? (isAr ? 'يجب الترقية لاستخدام هذه الميزة' : 'Upgrade required for this feature') : ''}
+                >
+                  📥 {t('Download PDF Report', 'تحميل تقرير PDF')} {!companyFeatures.includes('pdf_reports') && '🔒'}
                 </button>
               </div>
             </div>
@@ -1125,7 +1154,8 @@ function AdminDashboard() {
                   </div>
 
                   {selectedApplicant.evaluation?.disc && (
-                    <div className="card">
+                    <div className="card" style={{ position: 'relative' }}>
+                      {!companyFeatures.includes('disc_profiling') && <LockedFeatureBadge title={isAr ? 'تحليل الشخصية DISC' : 'DISC Profiling'} isAr={isAr} />}
                       <h3 style={{ marginBottom: '1.5rem' }}>{t('DISC Profile', 'ملف شخصية DISC')}</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <ScoreBar label="Dominance (D)" score={selectedApplicant.evaluation.disc.d || 0} max={100} color="#ef4444" suffix="%" />
@@ -1139,7 +1169,8 @@ function AdminDashboard() {
               </div>
 
               {/* ✅ AI Insights + Strengths + Weaknesses */}
-              <div className="card" style={{ marginTop: '1.5rem' }}>
+              <div className="card" style={{ marginTop: '1.5rem', position: 'relative' }}>
+                {!companyFeatures.includes('ai_evaluation') && <LockedFeatureBadge title={isAr ? 'تحليل الذكاء الاصطناعي' : 'AI Evaluation'} isAr={isAr} />}
                 <h3 style={{ marginBottom: '1.5rem' }}>{t('AI Insights & Analysis', 'تحليل الذكاء الاصطناعي')}</h3>
 
                 {selectedApplicant.evaluation?.strengths?.length > 0 && (

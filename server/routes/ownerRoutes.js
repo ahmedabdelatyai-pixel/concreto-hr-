@@ -142,6 +142,33 @@ router.get('/ai-settings/public', async (req, res) => {
   }
 });
 
+// GET Branding Settings
+router.get('/branding', async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'branding' });
+    res.json(setting?.value || { siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
+  } catch (err) {
+    res.json({ siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
+  }
+});
+
+// POST — Save Branding Settings (owner-protected)
+router.post('/branding', ownerOnly, async (req, res) => {
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const { siteName, siteTagline, primaryColor } = req.body;
+    await SystemSettings.findOneAndUpdate(
+      { key: 'branding' },
+      { key: 'branding', value: { siteName, siteTagline, primaryColor }, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ message: 'Branding settings saved successfully!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ============================================================
 // =========== FOOTER SETTINGS ROUTES (OWNER) ================
 // ============================================================
@@ -296,6 +323,23 @@ router.get('/jobs/all', ownerOnly, async (req, res) => {
     }));
 
     res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH any job by ID (owner bypass)
+router.patch('/jobs/:id', ownerOnly, async (req, res) => {
+  try {
+    const Job = require('../models/Job');
+    const { title_en, title_ar, department, active, questionCount } = req.body;
+    const updated = await Job.findByIdAndUpdate(
+      req.params.id,
+      { $set: { title_en, title_ar, department, active, questionCount, updatedAt: new Date() } },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: 'Job not found' });
+    res.json({ message: 'Job updated successfully!', job: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

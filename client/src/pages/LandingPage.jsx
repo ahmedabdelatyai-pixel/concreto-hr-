@@ -30,6 +30,7 @@ function LandingPage() {
   const [subLoading, setSubLoading] = useState(false);
   const [subSuccess, setSubSuccess] = useState('');
   const [subError, setSubError] = useState('');
+  const [branding, setBranding] = useState({ siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
 
   const handleSubSubmit = async (e) => {
     e.preventDefault();
@@ -86,6 +87,16 @@ function LandingPage() {
       }
     };
     fetchPlans();
+
+    const fetchBranding = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/owner/branding`);
+        if (res.data) setBranding(res.data);
+      } catch (err) {
+        console.error('Failed to load branding:', err);
+      }
+    };
+    fetchBranding();
   }, [API_URL]);
 
   const isArabic = i18n.language === 'ar';
@@ -98,14 +109,14 @@ function LandingPage() {
         padding: '1.5rem 10%', position: 'sticky', top: 0, backgroundColor: 'rgba(5, 10, 20, 0.8)',
         backdropFilter: 'blur(12px)', zIndex: 1000, borderBottom: '1px solid rgba(255,255,255,0.05)'
       }}>
-        <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#6366f1', letterSpacing: '-1px' }}>
-          TalentFlow<span style={{ color: '#fff' }}>AI</span>
+        <div style={{ fontSize: '1.8rem', fontWeight: '800', color: branding.primaryColor, letterSpacing: '-1px' }}>
+          {branding.siteName}<span style={{ color: '#fff' }}>{branding.siteTagline}</span>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button 
             onClick={() => navigate('/admin/login')} 
             className="btn btn-outline" 
-            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', borderColor: 'rgba(99, 102, 241, 0.4)', color: '#6366f1' }}
+            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', borderColor: `${branding.primaryColor}66`, color: branding.primaryColor }}
           >
             {isArabic ? 'لوحة الإدارة' : 'Admin'}
           </button>

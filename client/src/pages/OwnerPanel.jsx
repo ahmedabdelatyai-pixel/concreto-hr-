@@ -18,6 +18,8 @@ const AVAILABLE_FEATURES = [
 
 function PlanEditForm({ plan, onSave, onCancel, isAr }) {
   const [form, setForm] = useState({
+    displayName: plan.displayName,
+    description: plan.description,
     jobLimit: plan.jobLimit,
     cvLimit: plan.cvLimit,
     price: plan.price,
@@ -47,6 +49,28 @@ function PlanEditForm({ plan, onSave, onCancel, isAr }) {
             value={form.cvLimit}
             onChange={e => setForm({ ...form, cvLimit: Number(e.target.value) })}
             style={{ padding: '0.5rem' }}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            {isAr ? 'اسم الباقة للعرض' : 'Plan Display Name'}
+          </label>
+          <input
+            type="text" className="form-control"
+            value={form.displayName}
+            onChange={e => setForm({ ...form, displayName: e.target.value })}
+            style={{ padding: '0.5rem' }}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+            {isAr ? 'وصف الباقة' : 'Plan Description'}
+          </label>
+          <textarea
+            className="form-control"
+            value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })}
+            style={{ padding: '0.5rem', minHeight: '60px' }}
           />
         </div>
         <div className="form-group">
@@ -156,6 +180,12 @@ function OwnerPanel() {
   const [subRequests, setSubRequests] = useState([]);
   const [subReqLoading, setSubReqLoading] = useState(false);
 
+  // Branding State
+  const [branding, setBranding] = useState({ siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
+  const [brandingLoading, setBrandingLoading] = useState(false);
+  const [brandingSuccess, setBrandingSuccess] = useState('');
+  const [brandingError, setBrandingError] = useState('');
+
   const [newCompany, setNewCompany] = useState({
     companyName: '',
     logo: '',
@@ -176,8 +206,33 @@ function OwnerPanel() {
       fetchFooterLinks();
       fetchUserManual();
       fetchSubRequests();
+      fetchBranding();
     }
   }, [isAuthenticated]);
+
+  const fetchBranding = async () => {
+    try {
+      const res = await api.get('/owner/branding');
+      setBranding(res.data);
+    } catch (err) {
+      console.error('Failed to fetch branding', err);
+    }
+  };
+
+  const handleSaveBranding = async () => {
+    setBrandingLoading(true);
+    setBrandingError('');
+    setBrandingSuccess('');
+    try {
+      await api.post('/owner/branding', branding, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setBrandingSuccess(isAr ? '✅ تم حفظ إعدادات الهوية بنجاح!' : '✅ Branding saved successfully!');
+      setTimeout(() => setBrandingSuccess(''), 4000);
+    } catch (err) {
+      setBrandingError(err.response?.data?.message || err.message);
+    } finally {
+      setBrandingLoading(false);
+    }
+  };
 
   const fetchSubRequests = async () => {
     setSubReqLoading(true);
@@ -429,6 +484,25 @@ function OwnerPanel() {
     subscription: ''
   });
 
+  // Job Editing State
+  const [editingJobOwner, setEditingJobOwner] = useState(null);
+  const [editJobForm, setEditJobForm] = useState({ title_en: '', title_ar: '', department: '', active: true, questionCount: 10 });
+
+  const handleUpdateJobOwner = async (e) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/owner/jobs/${editingJobOwner._id}`, editJobForm, {
+        headers: { 'x-owner-secret': OWNER_PASSWORD }
+      });
+      setSuccess(isAr ? '✅ تم تحديث الوظيفة بنجاح!' : '✅ Job updated successfully!');
+      setEditingJobOwner(null);
+      fetchAllJobs();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    }
+  };
+
   const handleEditClick = (company) => {
     setEditingCompany(company);
     setEditForm({
@@ -595,6 +669,7 @@ function OwnerPanel() {
             { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444' },
             { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311' },
             { key: 'requests', label: isAr ? '📩 طلبات الاشتراك' : '📩 Requests', color: '#3b82f6' },
+            { key: 'branding', label: isAr ? '🎨 الهوية والبراند' : '🎨 Branding', color: '#ec4899' },
             { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
             { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4' },
             { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e' },
@@ -868,6 +943,81 @@ function OwnerPanel() {
         </div>
         </>)}
 
+        {/* ===== BRANDING TAB ===== */}
+        {activeTab === 'branding' && (
+          <div className="fade-in">
+            <div className="card" style={{ padding: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ fontSize: '2rem' }}>🎨</div>
+                <div>
+                  <h2 style={{ margin: 0 }}>{isAr ? 'إعدادات الهوية والبراند' : 'System Branding Settings'}</h2>
+                  <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>{isAr ? 'تحكم في مسمى النظام، الشعار، والألوان الرئيسية للمنصة' : 'Control system name, tagline, and primary platform colors'}</p>
+                </div>
+              </div>
+
+              {brandingSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{brandingSuccess}</div>}
+              {brandingError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>⚠️ {brandingError}</div>}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+                <div className="form-group">
+                  <label className="form-label">{isAr ? 'اسم الموقع' : 'Site Name'}</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={branding.siteName}
+                    onChange={e => setBranding({...branding, siteName: e.target.value})}
+                    placeholder="TalentFlow"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{isAr ? 'التاج لاين (اختياري)' : 'Tagline (Optional)'}</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={branding.siteTagline}
+                    onChange={e => setBranding({...branding, siteTagline: e.target.value})}
+                    placeholder="AI"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{isAr ? 'اللون الرئيسي للمنصة' : 'Primary Theme Color'}</label>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={branding.primaryColor}
+                      onChange={e => setBranding({...branding, primaryColor: e.target.value})}
+                      style={{ width: '50px', height: '45px', border: 'none', background: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={branding.primaryColor}
+                      onChange={e => setBranding({...branding, primaryColor: e.target.value})}
+                      style={{ fontFamily: 'monospace' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'rgba(255,255,255,0.5)' }}>{isAr ? 'معاينة الشعار:' : 'Logo Preview:'}</h4>
+                <div style={{ fontSize: '2.2rem', fontWeight: '800', color: branding.primaryColor, letterSpacing: '-1px' }}>
+                  {branding.siteName}<span style={{ color: '#fff' }}>{branding.siteTagline}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSaveBranding}
+                disabled={brandingLoading}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '0.9rem', fontSize: '1.1rem', fontWeight: '700', background: `linear-gradient(135deg, ${branding.primaryColor}, #fff2)`, border: 'none', marginTop: '2rem' }}
+              >
+                {brandingLoading ? (isAr ? '⏳ جاري الحفظ...' : '⏳ Saving...') : (isAr ? '💾 حفظ إعدادات الهوية' : '💾 Save Branding')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ===== AI BRAIN SETTINGS TAB ===== */}
         {activeTab === 'ai' && (
           <div className="fade-in">
@@ -1037,7 +1187,7 @@ function OwnerPanel() {
                       <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'أسئلة' : 'Questions'}</th>
                       <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'الحالة' : 'Status'}</th>
                       <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'التاريخ' : 'Date'}</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'حذف' : 'Delete'}</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{isAr ? 'إجراء' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1077,19 +1227,41 @@ function OwnerPanel() {
                             {new Date(job.createdAt).toLocaleDateString()}
                           </td>
                           <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                            <button
-                              onClick={() => handleDeleteOwnerJob(job._id, job.title_en || job.title_ar)}
-                              style={{
-                                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                                color: '#ef4444', borderRadius: '6px', padding: '0.3rem 0.75rem',
-                                cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={e => { e.target.style.background = '#ef4444'; e.target.style.color = '#fff'; }}
-                              onMouseLeave={e => { e.target.style.background = 'rgba(239,68,68,0.1)'; e.target.style.color = '#ef4444'; }}
-                            >
-                              🗑 {isAr ? 'حذف' : 'Delete'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  setEditingJobOwner(job);
+                                  setEditJobForm({
+                                    title_en: job.title_en || '',
+                                    title_ar: job.title_ar || '',
+                                    department: job.department || '',
+                                    active: job.active,
+                                    questionCount: job.questionCount || 10
+                                  });
+                                }}
+                                style={{
+                                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)',
+                                  color: '#3b82f6', borderRadius: '6px', padding: '0.3rem 0.75rem',
+                                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                ✏️ {isAr ? 'تعديل' : 'Edit'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOwnerJob(job._id, job.title_en || job.title_ar)}
+                                style={{
+                                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                                  color: '#ef4444', borderRadius: '6px', padding: '0.3rem 0.75rem',
+                                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                  transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.target.style.background = '#ef4444'; e.target.style.color = '#fff'; }}
+                                onMouseLeave={e => { e.target.style.background = 'rgba(239,68,68,0.1)'; e.target.style.color = '#ef4444'; }}
+                              >
+                                🗑 {isAr ? 'حذف' : 'Delete'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1463,6 +1635,50 @@ function OwnerPanel() {
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                   <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>{isAr ? 'حفظ التعديلات' : 'Save Changes'}</button>
                   <button type="button" className="btn btn-outline" onClick={() => setEditingCompany(null)} style={{ flex: 1 }}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Job Modal (Owner) */}
+        {editingJobOwner && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+            padding: '2rem'
+          }}>
+            <div className="card fade-in" style={{ maxWidth: '600px', width: '100%', padding: '2.5rem' }}>
+              <h2 style={{ marginBottom: '1.5rem', color: '#3b82f6' }}>{isAr ? '✏️ تعديل بيانات الوظيفة' : '✏️ Edit Job Details'}</h2>
+              <form onSubmit={handleUpdateJobOwner}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'مسمى الوظيفة (EN)' : 'Job Title (EN)'}</label>
+                    <input type="text" className="form-control" value={editJobForm.title_en} onChange={e => setEditJobForm({...editJobForm, title_en: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'مسمى الوظيفة (AR)' : 'Job Title (AR)'}</label>
+                    <input type="text" className="form-control" value={editJobForm.title_ar} onChange={e => setEditJobForm({...editJobForm, title_ar: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'القسم' : 'Department'}</label>
+                    <input type="text" className="form-control" value={editJobForm.department} onChange={e => setEditJobForm({...editJobForm, department: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'عدد الأسئلة' : 'Question Count'}</label>
+                    <input type="number" className="form-control" value={editJobForm.questionCount} onChange={e => setEditJobForm({...editJobForm, questionCount: Number(e.target.value)})} />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editJobForm.active} onChange={e => setEditJobForm({...editJobForm, active: e.target.checked})} style={{ width: '18px', height: '18px' }} />
+                      {isAr ? 'الوظيفة نشطة (تظهر للمرشحين)' : 'Job is active (visible to candidates)'}
+                    </label>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 2, backgroundColor: '#3b82f6', border: 'none' }}>{isAr ? 'حفظ التعديلات' : 'Save Changes'}</button>
+                  <button type="button" className="btn btn-outline" onClick={() => setEditingJobOwner(null)} style={{ flex: 1 }}>{isAr ? 'إلغاء' : 'Cancel'}</button>
                 </div>
               </form>
             </div>

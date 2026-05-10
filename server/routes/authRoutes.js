@@ -129,6 +129,10 @@ router.post('/login', authLimiter, async (req, res) => {
     // Generate token
     const token = generateToken(user._id, user.company._id);
 
+    // Fetch plan features
+    const Plan = require('../models/Plan');
+    const plan = await Plan.findOne({ name: user.company.subscription });
+
     res.json({
       message: 'تم تسجيل الدخول بنجاح | Login successful',
       token,
@@ -136,7 +140,8 @@ router.post('/login', authLimiter, async (req, res) => {
       company: {
         _id: user.company._id,
         name: user.company.name,
-        subscription: user.company.subscription
+        subscription: user.company.subscription,
+        features: plan ? plan.features : []
       }
     });
   } catch (err) {
@@ -146,15 +151,23 @@ router.post('/login', authLimiter, async (req, res) => {
 });
 
 // Get current user
-router.get('/me', authenticate, (req, res) => {
-  res.json({
-    user: req.user.toJSON(),
-    company: {
-      _id: req.user.company._id,
-      name: req.user.company.name,
-      subscription: req.user.company.subscription
-    }
-  });
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const plan = await Plan.findOne({ name: req.user.company.subscription });
+    
+    res.json({
+      user: req.user.toJSON(),
+      company: {
+        _id: req.user.company._id,
+        name: req.user.company.name,
+        subscription: req.user.company.subscription,
+        features: plan ? plan.features : []
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في جلب بيانات المستخدم | Fetch error' });
+  }
 });
 
 // Get all users in company
