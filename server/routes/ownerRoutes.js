@@ -344,7 +344,7 @@ router.get('/plans/public', async (req, res) => {
 router.put('/plans/:name', ownerOnly, async (req, res) => {
   try {
     const Plan = require('../models/Plan');
-    const { jobLimit, cvLimit, price, displayName, description, active } = req.body;
+    const { jobLimit, cvLimit, price, displayName, description, active, features } = req.body;
 
     const updates = { updatedAt: new Date() };
     if (jobLimit !== undefined) updates.jobLimit = Number(jobLimit);
@@ -353,6 +353,7 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
     if (displayName) updates.displayName = displayName;
     if (description !== undefined) updates.description = description;
     if (active !== undefined) updates.active = active;
+    if (features !== undefined) updates.features = features;
 
     const plan = await Plan.findOneAndUpdate(
       { name: req.params.name.toLowerCase() },

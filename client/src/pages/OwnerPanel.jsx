@@ -5,11 +5,23 @@ import api from '../services/api';
 import { refreshAiSettings } from '../services/aiApi';
 
 // ── Inline component for editing a plan's limits ──────────────────────────────
+const AVAILABLE_FEATURES = [
+  { key: 'ai_evaluation', ar: 'تقييم الذكاء الاصطناعي', en: 'AI Evaluation' },
+  { key: 'basic_dashboard', ar: 'لوحة تحكم أساسية', en: 'Basic Dashboard' },
+  { key: 'disc_profiling', ar: 'تحليل الشخصية DISC', en: 'DISC Personality Profiling' },
+  { key: 'pdf_reports', ar: 'تقارير PDF احترافية', en: 'Professional PDF Reports' },
+  { key: 'priority_support', ar: 'دعم فني سريع', en: 'Priority Support' },
+  { key: 'full_customization', ar: 'تخصيص كامل للنظام', en: 'Full System Customization' },
+  { key: 'advanced_anti_cheat', ar: 'مكافحة الغش المتقدمة', en: 'Advanced Anti-Cheat' },
+  { key: 'account_manager', ar: 'مدير حساب مخصص', en: 'Dedicated Account Manager' }
+];
+
 function PlanEditForm({ plan, onSave, onCancel, isAr }) {
   const [form, setForm] = useState({
     jobLimit: plan.jobLimit,
     cvLimit: plan.cvLimit,
     price: plan.price,
+    features: plan.features || []
   });
 
   return (
@@ -47,6 +59,30 @@ function PlanEditForm({ plan, onSave, onCancel, isAr }) {
             onChange={e => setForm({ ...form, price: Number(e.target.value) })}
             style={{ padding: '0.5rem' }}
           />
+        </div>
+        <div className="form-group" style={{ marginTop: '0.5rem' }}>
+          <label className="form-label" style={{ fontSize: '0.85rem', color: '#fca311', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.2rem' }}>
+            {isAr ? 'اختر مميزات الباقة:' : 'Select Plan Features:'}
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+            {AVAILABLE_FEATURES.map(feat => {
+              const isChecked = form.features.includes(feat.key);
+              return (
+                <label key={feat.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer', color: isChecked ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isChecked}
+                    onChange={(e) => {
+                      const newFeats = e.target.checked ? [...form.features, feat.key] : form.features.filter(k => k !== feat.key);
+                      setForm({ ...form, features: newFeats });
+                    }}
+                    style={{ accentColor: '#10b981', width: '14px', height: '14px' }}
+                  />
+                  {isAr ? feat.ar : feat.en}
+                </label>
+              );
+            })}
+          </div>
         </div>
       </div>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1131,6 +1167,26 @@ function OwnerPanel() {
                             </span>
                           </div>
                         </div>
+
+                        {/* Features Display */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                          <h5 style={{ fontSize: '0.85rem', color: '#fca311', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.25rem' }}>{isAr ? 'المميزات المُفعلة:' : 'Enabled Features:'}</h5>
+                          {(!plan.features || plan.features.length === 0) ? (
+                            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'لا توجد مميزات مضافة' : 'No features added'}</span>
+                          ) : (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              {plan.features.map(featKey => {
+                                const featObj = AVAILABLE_FEATURES.find(f => f.key === featKey);
+                                return featObj ? (
+                                  <li key={featKey} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ color: '#10b981' }}>✓</span> {isAr ? featObj.ar : featObj.en}
+                                  </li>
+                                ) : null;
+                              })}
+                            </ul>
+                          )}
+                        </div>
+
                         <button
                           onClick={() => setEditingPlan(plan.name)}
                           style={{
@@ -1139,7 +1195,7 @@ function OwnerPanel() {
                             color: '#fca311', fontWeight: '700', fontSize: '0.85rem', transition: 'all 0.2s'
                           }}
                         >
-                          ✏️ {isAr ? 'تعديل الحدود' : 'Edit Limits'}
+                          ✏️ {isAr ? 'تعديل الباقة' : 'Edit Plan'}
                         </button>
                       </div>
                     )}

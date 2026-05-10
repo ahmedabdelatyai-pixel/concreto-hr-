@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useInterviewStore } from '../store/interviewStore';
 
+const AVAILABLE_FEATURES = [
+  { key: 'ai_evaluation', ar: 'تقييم الذكاء الاصطناعي', en: 'AI Evaluation' },
+  { key: 'basic_dashboard', ar: 'لوحة تحكم أساسية', en: 'Basic Dashboard' },
+  { key: 'disc_profiling', ar: 'تحليل الشخصية DISC', en: 'DISC Personality Profiling' },
+  { key: 'pdf_reports', ar: 'تقارير PDF احترافية', en: 'Professional PDF Reports' },
+  { key: 'priority_support', ar: 'دعم فني سريع', en: 'Priority Support' },
+  { key: 'full_customization', ar: 'تخصيص كامل للنظام', en: 'Full System Customization' },
+  { key: 'advanced_anti_cheat', ar: 'مكافحة الغش المتقدمة', en: 'Advanced Anti-Cheat' },
+  { key: 'account_manager', ar: 'مدير حساب مخصص', en: 'Dedicated Account Manager' }
+];
+
 function LandingPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -253,8 +264,6 @@ function LandingPage() {
             const color = plan.name === 'starter' ? '#10b981' : (plan.name === 'professional' ? '#3b82f6' : '#8b5cf6');
             const descAr = plan.name === 'starter' ? 'سعة معالجة ذكية للشركات الناشئة التي تبحث عن الدقة.' : (plan.name === 'professional' ? 'قوة تحليلية متقدمة لفرق التوظيف الطموحة.' : 'حلول شاملة وقدرات معالجة فائقة للمؤسسات الكبرى.');
             const descEn = plan.name === 'starter' ? 'Smart processing capacity for startups seeking precision.' : (plan.name === 'professional' ? 'Advanced analytical power for ambitious recruitment teams.' : 'Comprehensive solutions and superior processing for large enterprises.');
-            const extraFeatsAr = plan.name === 'starter' ? ['تقييم الذكاء الاصطناعي', 'لوحة تحكم أساسية'] : (plan.name === 'professional' ? ['تحليل الشخصية DISC', 'تقارير PDF احترافية', 'دعم فني سريع'] : ['تخصيص كامل للنظام', 'مكافحة الغش المتقدمة', 'مدير حساب مخصص']);
-            const extraFeatsEn = plan.name === 'starter' ? ['AI Evaluation', 'Basic Dashboard'] : (plan.name === 'professional' ? ['DISC Personality Profiling', 'Professional PDF Reports', 'Priority Support'] : ['Full System Customization', 'Advanced Anti-Cheat', 'Dedicated Account Manager']);
             
             return (
               <div key={plan._id || i} style={{
@@ -290,11 +299,15 @@ function LandingPage() {
                   <li style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
                     <span style={{ color: color }}>✓</span> {plan.cvLimit >= 9999 ? (isArabic ? 'سير ذاتية غير محدودة' : 'Unlimited CVs') : `${plan.cvLimit} ${isArabic ? 'سيرة ذاتية / شهر' : 'CVs / month'}`}
                   </li>
-                  {(isArabic ? extraFeatsAr : extraFeatsEn).map((feat, idx) => (
-                    <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
-                      <span style={{ color: color }}>✓</span> {feat}
-                    </li>
-                  ))}
+                  {(plan.features || []).map((featKey, idx) => {
+                    const featObj = AVAILABLE_FEATURES.find(f => f.key === featKey);
+                    if (!featObj) return null;
+                    return (
+                      <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
+                        <span style={{ color: color }}>✓</span> {isArabic ? featObj.ar : featObj.en}
+                      </li>
+                    );
+                  })}
                 </ul>
                 <button 
                   className="btn" 

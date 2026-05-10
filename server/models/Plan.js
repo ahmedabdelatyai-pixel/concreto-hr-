@@ -62,6 +62,12 @@ const planSchema = new mongoose.Schema({
     default: 0
   },
 
+  // مميزات الباقة الديناميكية
+  features: {
+    type: [String],
+    default: []
+  },
+
   updatedAt: {
     type: Date,
     default: Date.now
