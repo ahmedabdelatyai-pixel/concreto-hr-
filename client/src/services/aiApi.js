@@ -6,7 +6,7 @@
 
 // ─── System Prompt Cache ───────────────────────────────────────────────────────
 let _cachedSystemPrompt = null;
-let _cachedModel = 'gemini-2.0-flash';
+let _cachedModel = 'gemini-1.5-flash';
 
 const getSystemSettings = async () => {
   if (_cachedSystemPrompt) return { systemPrompt: _cachedSystemPrompt, model: _cachedModel };
@@ -23,7 +23,7 @@ const getSystemSettings = async () => {
   }
   if (!_cachedSystemPrompt) {
     _cachedSystemPrompt = `أنت الخبير الرائد (Senior HR Director) في منصة TalentFlow، تمتلك خبرة دولية تزيد عن 50 عاماً في إدارة الموارد البشرية والتوظيف. أنت استشاري إداري محنك يتميز بالفراسة والموضوعية المطلقة. مهامك: تحليل السير الذاتية، توليد أسئلة ذكية، وتقييم الإجابات بدقة جراحية.`;
-    _cachedModel = 'gemini-2.0-flash';
+    _cachedModel = 'gemini-1.5-flash';
   }
   return { systemPrompt: _cachedSystemPrompt, model: _cachedModel };
 };
@@ -40,8 +40,9 @@ const SAFETY_SETTINGS = [
 
 // ─── Core Gemini Caller ───────────────────────────────────────────────────────
 const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) => {
-  const { systemPrompt, model } = await getSystemSettings();
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const { systemPrompt } = await getSystemSettings();
+  const model = 'gemini-1.5-flash'; 
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(GEMINI_URL, {
     method: 'POST',
@@ -59,8 +60,12 @@ const callGemini = async (apiKey, prompt, jsonMode = true, temperature = 0.5) =>
     }),
   });
 
-  const data = await response.json();
-  if (data.error) throw new Error(data.error.message);
+    const data = await response.json();
+    if (data.error) {
+      console.error('Gemini API Details:', data.error);
+      refreshAiSettings(); // Clear cache on error to try fresh settings next time
+      throw new Error(`Gemini Error: ${data.error.message} (Code: ${data.error.code})`);
+    }
   if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
     throw new Error('Empty response from Gemini API');
   }
@@ -150,12 +155,16 @@ Write in the same language as the job title (Arabic if Arabic title, English if 
 Return as plain text only — no markdown, no JSON.`;
 
   try {
-    return await callGemini(apiKey, prompt, false, 0.6);
+    console.log('Generating JD for:', jobTitle);
+    const draft = await callGemini(apiKey, prompt, false, 0.6);
+    if (!draft) throw new Error('Gemini returned empty JD');
+    return draft;
   } catch (error) {
-    console.error('JD Generation Error:', error);
-    return '';
+    console.error('JD Generation Service Error:', error);
+    throw error; // Rethrow to be caught by UI
   }
 };
+
 
 // ─── ✅ REBUILT: Generate Structured Questions (MCQ + T/F + Essay) ─────────────
 /**

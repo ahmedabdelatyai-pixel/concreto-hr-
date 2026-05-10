@@ -107,7 +107,37 @@ function AdminDashboard() {
     return null;
   }
 
+  const handleGenerateJD = async () => {
+    // Priority: use the title of the current language, fallback to the other
+    const title = (isAr ? (newJob.title_ar || newJob.title_en) : (newJob.title_en || newJob.title_ar))?.trim();
+    
+    if (!title) {
+      alert(isAr ? 'الرجاء إدخال مسمى الوظيفة أولاً.' : 'Please enter the job title first.');
+      return;
+    }
+
+    setJdGenerating(true);
+    try {
+      const draft = await generateJD(title, newJob.department);
+      if (draft) {
+        setNewJob(prev => ({ ...prev, description: draft }));
+      } else {
+        throw new Error('Empty draft');
+      }
+    } catch (err) {
+      console.error('JD Generation Error:', err);
+      const msg = isAr 
+        ? 'فشل توليد الوصف. تأكد من إعدادات الـ API Key ومحاولة مسمى وظيفة واضح.' 
+        : 'Failed to generate JD. Please check your API key settings and try a clear job title.';
+      alert(msg);
+    } finally {
+      setJdGenerating(false);
+    }
+  };
+
+
   const handleLogout = () => {
+
     if (isAdminLoggedIn) {
       adminLogout();
     } else {
@@ -164,22 +194,6 @@ function AdminDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ AI JD Helper
-  const handleGenerateJD = async () => {
-    const title = newJob.title_en || newJob.title_ar;
-    if (!title) {
-      alert(isAr ? 'يرجى كتابة مسمى الوظيفة أولاً' : 'Please enter the job title first.');
-      return;
-    }
-    setJdGenerating(true);
-    try {
-      const jd = await generateJD(title, newJob.department);
-      if (jd) setNewJob(prev => ({ ...prev, description: jd }));
-    } catch (e) {
-      alert(isAr ? 'فشل توليد الوصف الوظيفي' : 'Failed to generate JD');
-    }
-    setJdGenerating(false);
-  };
 
 
   const addQuestionToNewJob = () => {

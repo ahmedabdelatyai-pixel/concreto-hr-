@@ -94,9 +94,9 @@ router.get('/ai-settings', ownerOnly, async (req, res) => {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ai_system_prompt' });
     if (!setting) {
-      return res.json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-2.0-flash', updatedAt: null, isDefault: true });
+      return res.json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-1.5-flash', updatedAt: null, isDefault: true });
     }
-    res.json({ systemPrompt: setting.value.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting.value.model || 'gemini-2.0-flash', updatedAt: setting.updatedAt, isDefault: false });
+    res.json({ systemPrompt: setting.value.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting.value.model || 'gemini-1.5-flash', updatedAt: setting.updatedAt, isDefault: false });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -112,7 +112,7 @@ router.post('/ai-settings', ownerOnly, async (req, res) => {
     }
     await SystemSettings.findOneAndUpdate(
       { key: 'ai_system_prompt' },
-      { key: 'ai_system_prompt', value: { systemPrompt: systemPrompt.trim(), model: model || 'gemini-2.0-flash' }, updatedAt: new Date() },
+      { key: 'ai_system_prompt', value: { systemPrompt: systemPrompt.trim(), model: model || 'gemini-1.5-flash' }, updatedAt: new Date() },
       { upsert: true, new: true }
     );
     res.json({ message: 'AI settings saved successfully!' });
@@ -126,9 +126,9 @@ router.get('/ai-settings/public', async (req, res) => {
   try {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ai_system_prompt' });
-    res.json({ systemPrompt: setting?.value?.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting?.value?.model || 'gemini-2.0-flash' });
+    res.json({ systemPrompt: setting?.value?.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting?.value?.model || 'gemini-1.5-flash' });
   } catch (err) {
-    res.status(200).json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-2.0-flash' });
+    res.status(200).json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-1.5-flash' });
   }
 });
 
