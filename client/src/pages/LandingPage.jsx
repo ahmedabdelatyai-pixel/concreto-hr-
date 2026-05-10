@@ -339,49 +339,52 @@ function LandingPage() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-          padding: '2rem'
+          padding: '1rem'
         }}>
-          <div className="card fade-in" style={{ maxWidth: '500px', width: '100%', padding: '2.5rem', position: 'relative', border: '1px solid rgba(59,130,246,0.3)' }}>
+          <div className="card fade-in" style={{ 
+            maxWidth: '500px', width: '100%', padding: '1.5rem', position: 'relative', 
+            border: '1px solid rgba(59,130,246,0.3)', maxHeight: '90vh', overflowY: 'auto' 
+          }}>
             <button 
               onClick={() => setShowSubModal(false)}
               style={{ position: 'absolute', top: '15px', right: isArabic ? 'auto' : '15px', left: isArabic ? '15px' : 'auto', background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}
             >
               ✕
             </button>
-            <h2 style={{ marginBottom: '0.5rem', fontSize: '1.5rem', color: '#3b82f6' }}>
+            <h2 style={{ marginBottom: '0.25rem', fontSize: '1.4rem', color: '#3b82f6' }}>
               {isArabic ? 'طلب اشتراك' : 'Subscription Request'}
             </h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '2rem' }}>
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
               {isArabic ? `لقد اخترت باقة: ` : `You selected: `}
               <strong style={{ color: '#fff' }}>{selectedPlanName}</strong>
             </p>
 
             {subSuccess ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#10b981', background: 'rgba(16,185,129,0.1)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: '#10b981', background: 'rgba(16,185,129,0.1)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)' }}>
                 <h3>{subSuccess}</h3>
               </div>
             ) : (
-              <form onSubmit={handleSubSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {subError && <div style={{ color: '#ef4444', padding: '1rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px' }}>{subError}</div>}
+              <form onSubmit={handleSubSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {subError && <div style={{ color: '#ef4444', padding: '0.75rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>{subError}</div>}
                 
-                <div className="form-group">
-                  <label className="form-label">{isArabic ? 'اسمك بالكامل' : 'Your Name'}</label>
-                  <input type="text" required className="form-control" value={subForm.clientName} onChange={e => setSubForm({...subForm, clientName: e.target.value})} placeholder={isArabic ? 'أحمد محمد' : 'John Doe'} />
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>{isArabic ? 'اسمك بالكامل' : 'Your Name'}</label>
+                  <input type="text" required className="form-control" style={{ padding: '0.7rem' }} value={subForm.clientName} onChange={e => setSubForm({...subForm, clientName: e.target.value})} placeholder={isArabic ? 'أحمد محمد' : 'John Doe'} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">{isArabic ? 'اسم الشركة' : 'Company Name'}</label>
-                  <input type="text" required className="form-control" value={subForm.companyName} onChange={e => setSubForm({...subForm, companyName: e.target.value})} placeholder={isArabic ? 'شركة التقنية الحديثة' : 'Acme Corp'} />
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>{isArabic ? 'اسم الشركة' : 'Company Name'}</label>
+                  <input type="text" required className="form-control" style={{ padding: '0.7rem' }} value={subForm.companyName} onChange={e => setSubForm({...subForm, companyName: e.target.value})} placeholder={isArabic ? 'شركة التقنية الحديثة' : 'Acme Corp'} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">{isArabic ? 'البريد الإلكتروني' : 'Email Address'}</label>
-                  <input type="email" required className="form-control" value={subForm.email} onChange={e => setSubForm({...subForm, email: e.target.value})} placeholder="email@company.com" />
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>{isArabic ? 'البريد الإلكتروني' : 'Email Address'}</label>
+                  <input type="email" required className="form-control" style={{ padding: '0.7rem' }} value={subForm.email} onChange={e => setSubForm({...subForm, email: e.target.value})} placeholder="email@company.com" />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">{isArabic ? 'رقم الهاتف / واتساب' : 'Phone / WhatsApp'}</label>
-                  <input type="tel" required className="form-control" value={subForm.phone} onChange={e => setSubForm({...subForm, phone: e.target.value})} placeholder="+966 50 000 0000" />
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>{isArabic ? 'رقم الهاتف / واتساب' : 'Phone / WhatsApp'}</label>
+                  <input type="tel" required className="form-control" style={{ padding: '0.7rem' }} value={subForm.phone} onChange={e => setSubForm({...subForm, phone: e.target.value})} placeholder="+966 50 000 0000" />
                 </div>
                 
-                <button type="submit" disabled={subLoading} className="btn btn-primary" style={{ padding: '1rem', marginTop: '1rem', fontSize: '1.1rem', fontWeight: 'bold' }}>
+                <button type="submit" disabled={subLoading} className="btn btn-primary" style={{ padding: '0.8rem', marginTop: '0.5rem', fontSize: '1rem', fontWeight: 'bold' }}>
                   {subLoading ? (isArabic ? 'جاري الإرسال...' : 'Sending...') : (isArabic ? 'إرسال الطلب' : 'Submit Request')}
                 </button>
               </form>
