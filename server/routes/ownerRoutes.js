@@ -7,7 +7,7 @@ const Applicant = require('../models/Applicant');
 // Middleware to check for Owner Secret
 const ownerOnly = (req, res, next) => {
   const secret = req.headers['x-owner-secret'];
-  if (secret === 'owner_concreto_2025') {
+  if (secret === '01553692600A@n') {
     next();
   } else {
     res.status(403).json({ message: 'Forbidden: Owner access only' });

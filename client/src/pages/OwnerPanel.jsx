@@ -130,7 +130,7 @@ function OwnerPanel() {
   });
 
   // Owner password
-  const OWNER_PASSWORD = 'owner_concreto_2025';
+  const OWNER_PASSWORD = '01553692600A@n';
 
   useEffect(() => {
     if (isAuthenticated) {
