@@ -235,7 +235,15 @@ export const generateQuestions = async (jobTitle, cvData, language = 'en', custo
   const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
-  const isAr = language === 'ar';
+  // NEW: Detect language from custom questions if not explicitly Arabic
+  // If ANY custom question is Arabic, we treat the whole interview as Arabic
+  const hasArabicCustom = customBank.some(q => {
+    const text = typeof q === 'string' ? q : (q.text || q.question || '');
+    return /[\u0600-\u06FF]/.test(text);
+  });
+  const finalLanguage = hasArabicCustom ? 'ar' : language;
+  const isAr = finalLanguage === 'ar';
+
   const cvContext = cvData
     ? `\nCANDIDATE CV:\nSummary: "${cvData.summary}"\nSkills: ${cvData.skills?.join(', ')}\nExperience: ${cvData.experience_years} years`
     : '';
@@ -378,7 +386,7 @@ Return ONLY a JSON array in this format:
 
     // Pad with fallbacks if needed
     if (merged.length < targetCount) {
-      const padding = getStaticFallback(language, targetCount - merged.length, merged.map(q => q.question));
+      const padding = getStaticFallback(finalLanguage, targetCount - merged.length, merged.map(q => q.question));
       merged = [...merged, ...padding];
     }
 
@@ -387,7 +395,7 @@ Return ONLY a JSON array in this format:
   } catch (error) {
     console.error('Gemini Question Generation Error:', error);
     return {
-      questions: buildFallbackQuestions(customBank, targetCount, language),
+      questions: buildFallbackQuestions(customBank, targetCount, finalLanguage),
       correctAnswers: {}
     };
   }

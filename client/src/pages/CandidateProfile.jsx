@@ -141,12 +141,40 @@ function CandidateProfile() {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'radial-gradient(circle at 50% 0%, #1e1b4b, #0f172a 60%, #020617 100%)',
-      padding: '2rem 1rem',
-      direction: isArabic ? 'rtl' : 'ltr'
+      backgroundColor: '#050a14',
+      color: '#fff',
+      direction: isArabic ? 'rtl' : 'ltr',
+      fontFamily: "'Outfit', sans-serif"
     }}>
+      {/* Header with Language Selector */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        padding: '1rem 5%',
+        position: 'absolute',
+        top: 0,
+        width: '100%',
+        zIndex: 10
+      }}>
+        <button
+          onClick={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')}
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: '#fff',
+            padding: '0.4rem 0.8rem',
+            borderRadius: '6px',
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            fontWeight: '600',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          {isArabic ? 'English' : 'العربية'}
+        </button>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
       
       {/* Decorative Orbs */}
       <div style={{ position: 'absolute', top: '10%', left: '20%', width: '300px', height: '300px', background: 'rgba(99, 102, 241, 0.15)', borderRadius: '50%', filter: 'blur(80px)', pointerEvents: 'none' }} />
