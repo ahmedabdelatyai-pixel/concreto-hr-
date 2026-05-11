@@ -337,6 +337,7 @@ function CandidateProfile() {
           )}
         </form>
       </div>
+      </div>
       
       {/* Required for the spinner animation */}
       <style>{`
