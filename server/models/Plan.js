@@ -11,8 +11,7 @@ const planSchema = new mongoose.Schema({
     required: true,
     unique: true,
     lowercase: true,
-    trim: true,
-    enum: ['free', 'starter', 'professional', 'enterprise']
+    trim: true
   },
 
   // الاسم للعرض

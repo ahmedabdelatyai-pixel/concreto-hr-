@@ -131,7 +131,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Fetch plan features
     const Plan = require('../models/Plan');
-    const plan = await Plan.findOne({ name: user.company.subscription });
+    const plan = await Plan.findOne({ name: (user.company.subscription || 'starter').toLowerCase() });
 
     res.json({
       message: 'تم تسجيل الدخول بنجاح | Login successful',
@@ -159,7 +159,7 @@ router.post('/login', authLimiter, async (req, res) => {
 router.get('/me', authenticate, async (req, res) => {
   try {
     const Plan = require('../models/Plan');
-    const plan = await Plan.findOne({ name: req.user.company.subscription });
+    const plan = await Plan.findOne({ name: (req.user.company.subscription || 'starter').toLowerCase() });
     
     res.json({
       user: req.user.toJSON(),

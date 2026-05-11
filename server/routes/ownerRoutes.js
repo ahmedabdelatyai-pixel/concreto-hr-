@@ -35,7 +35,7 @@ router.post('/companies', ownerOnly, async (req, res) => {
       name: companyName,
       logo: logo || '',
       email: email,
-      subscription: subscription || 'starter',
+      subscription: (subscription || 'starter').toLowerCase(),
       active: true
     });
     await company.save();
@@ -93,7 +93,7 @@ router.patch('/companies/:id', ownerOnly, async (req, res) => {
       const company = await Company.findById(user.company._id);
       if (companyName) company.name = companyName;
       if (email) company.email = email;
-      if (subscription) company.subscription = subscription;
+      if (subscription) company.subscription = subscription.toLowerCase();
       if (logo !== undefined) company.logo = logo;
       await company.save();
     }

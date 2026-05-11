@@ -20,7 +20,6 @@ const companySchema = new mongoose.Schema({
   logo: String,
   subscription: {
     type: String,
-    enum: ['free', 'starter', 'pro', 'enterprise'],
     default: 'starter'
   },
   maxApplicants: {
