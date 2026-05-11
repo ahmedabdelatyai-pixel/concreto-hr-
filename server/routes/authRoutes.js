@@ -141,7 +141,12 @@ router.post('/login', authLimiter, async (req, res) => {
         _id: user.company._id,
         name: user.company.name,
         subscription: user.company.subscription,
-        features: plan ? plan.features : []
+        features: plan ? plan.features : [],
+        planDetails: plan ? {
+          displayName: plan.displayName,
+          jobLimit: plan.jobLimit,
+          cvLimit: plan.cvLimit
+        } : null
       }
     });
   } catch (err) {
@@ -162,7 +167,12 @@ router.get('/me', authenticate, async (req, res) => {
         _id: req.user.company._id,
         name: req.user.company.name,
         subscription: req.user.company.subscription,
-        features: plan ? plan.features : []
+        features: plan ? plan.features : [],
+        planDetails: plan ? {
+          displayName: plan.displayName,
+          jobLimit: plan.jobLimit,
+          cvLimit: plan.cvLimit
+        } : null
       }
     });
   } catch (err) {
