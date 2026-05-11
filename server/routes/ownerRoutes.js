@@ -14,6 +14,50 @@ const ownerOnly = (req, res, next) => {
   }
 };
 
+// POST — Create a new company (Owner only, bypasses public rate limits)
+router.post('/companies', ownerOnly, async (req, res) => {
+  try {
+    const { username, email, password, companyName, logo, subscription } = req.body;
+    const Company = require('../models/Company');
+    const bcrypt = require('bcrypt');
+
+    // Basic Validation
+    if (!username || !email || !password || !companyName) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ $or: [{ username }, { email }] });
+    if (user) return res.status(400).json({ message: 'User already exists' });
+
+    // Create company
+    const company = new Company({
+      name: companyName,
+      logo: logo || '',
+      email: email,
+      subscription: subscription || 'starter',
+      active: true
+    });
+    await company.save();
+
+    // Create user
+    const newUser = new User({
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
+      password: password, // Model handles hashing via pre-save hook
+      company: company._id,
+      role: 'admin',
+      name: companyName,
+      active: true
+    });
+    await newUser.save();
+
+    res.status(201).json({ message: 'Company created successfully', company: company, user: newUser });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET Global Stats
 router.get('/stats', ownerOnly, async (req, res) => {
   try {

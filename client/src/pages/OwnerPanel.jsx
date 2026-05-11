@@ -438,15 +438,15 @@ function OwnerPanel() {
     setSuccess('');
 
     try {
-      const response = await api.post('/auth/register', {
+      const response = await api.post('/owner/companies', {
         username: newCompany.username,
         email: newCompany.email,
         password: newCompany.password,
-        confirmPassword: newCompany.password,
         companyName: newCompany.companyName,
         logo: newCompany.logo,
-        fullName: newCompany.companyName,
         subscription: newCompany.subscription
+      }, {
+        headers: { 'x-owner-secret': OWNER_PASSWORD }
       });
 
       if (response.data) {
