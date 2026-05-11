@@ -421,13 +421,6 @@ function AdminDashboard() {
           >
             📋 {t('Jobs', 'الوظائف')} ({jobs.length})
           </button>
-          <button
-            onClick={() => { setActiveTab('integrity'); setSelectedApplicant(null); }}
-            className={activeTab === 'integrity' ? 'btn btn-primary' : 'btn btn-outline'}
-            style={{ padding: '0.6rem 1.5rem', borderColor: '#ef4444', color: activeTab === 'integrity' ? '#fff' : '#ef4444' }}
-          >
-            🛡️ {t('Integrity', 'النزاهة')}
-          </button>
         </div>
 
         {/* ========== ANALYTICS TAB ========== */}
@@ -934,8 +927,25 @@ function AdminDashboard() {
                           </span>
                         </td>
                         <td style={tdStyle}>
-                          <span style={{ fontSize: '0.8rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
-                            {app.source || t('Website', 'الموقع الإلكتروني')}
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            backgroundColor: 'rgba(255,255,255,0.05)', 
+                            padding: '3px 8px', 
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontWeight: '600',
+                            color: app.source?.toLowerCase() === 'whatsapp' ? '#10b981' : 
+                                   app.source?.toLowerCase() === 'linkedin' ? '#0a66c2' :
+                                   app.source?.toLowerCase() === 'facebook' ? '#1877f2' : 'inherit'
+                          }}>
+                            {app.source?.toLowerCase() === 'whatsapp' ? '🟢 WhatsApp' :
+                             app.source?.toLowerCase() === 'linkedin' ? '🔵 LinkedIn' :
+                             app.source?.toLowerCase() === 'facebook' ? '💠 Facebook' :
+                             app.source?.toLowerCase() === 'snapchat' ? '👻 Snapchat' :
+                             (app.source && app.source !== 'direct' && app.source !== 'Website') ? `🔗 ${app.source}` : 
+                             `🌐 ${t('Website', 'الموقع')}`}
                           </span>
                         </td>
                         <td style={tdStyle}>{getStatusBadge(app.status || 'Pending')}</td>
@@ -1212,10 +1222,17 @@ function AdminDashboard() {
               </div>
 
               {/* ✅ Integrity Meter */}
-              <div className="card" style={{ marginTop: '1.5rem', borderLeft: `4px solid ${
+              <div className="card" style={{ 
+                marginTop: '1.5rem', 
+                position: 'relative',
+                filter: !companyFeatures.includes('advanced_anti_cheat') ? 'blur(8px)' : 'none',
+                opacity: !companyFeatures.includes('advanced_anti_cheat') ? 0.6 : 1,
+                pointerEvents: !companyFeatures.includes('advanced_anti_cheat') ? 'none' : 'auto',
+                borderLeft: `4px solid ${
                 (selectedApplicant.cheatAttempts || 0) === 0 ? '#10b981' :
                 (selectedApplicant.cheatAttempts || 0) <= 2 ? '#fca311' : '#ef4444'
               }` }}>
+                {!companyFeatures.includes('advanced_anti_cheat') && <LockedFeatureBadge title={isAr ? 'مكافحة الغش المتقدمة' : 'Advanced Anti-Cheat'} isAr={isAr} />}
                 <h3 style={{ marginBottom: '1rem' }}>🛡️ {t('Integrity Meter', 'مقياس النزاهة')}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   {[

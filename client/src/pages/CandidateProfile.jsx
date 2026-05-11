@@ -113,7 +113,10 @@ function CandidateProfile() {
       jobId: selectedJob._id, 
       customQuestions, 
       questionCount, 
-      jobDescription 
+      jobDescription,
+      utm_source: searchParams.get('utm_source') || '',
+      utm_medium: searchParams.get('utm_medium') || '',
+      utm_campaign: searchParams.get('utm_campaign') || ''
     });
     
     // Also save Demo Flag again just to be safe

@@ -59,10 +59,10 @@ function CvUpload() {
           // Step 2: Init applicant (with UTM source)
           setProcessingStep(isArabic ? 'جاري تسجيل طلبك...' : 'Registering your application...');
           
-          // Read UTM params from URL
-          const utm_source = searchParams.get('utm_source') || candidate.source || 'direct';
-          const utm_medium = searchParams.get('utm_medium') || '';
-          const utm_campaign = searchParams.get('utm_campaign') || '';
+          // Read UTM params from URL or Store (Store is more reliable during navigation)
+          const utm_source = candidate.utm_source || searchParams.get('utm_source') || 'direct';
+          const utm_medium = candidate.utm_medium || searchParams.get('utm_medium') || '';
+          const utm_campaign = candidate.utm_campaign || searchParams.get('utm_campaign') || '';
 
           const isDemoMode = useInterviewStore.getState().isDemoMode;
 
