@@ -503,15 +503,15 @@ function OwnerPanel() {
     }
   };
 
-  const handleEditClick = (company) => {
-    setEditingCompany(company);
+  const handleEditClick = (userWithCompany) => {
+    setEditingCompany(userWithCompany);
     setEditForm({
-      companyName: company.companyName || '',
-      logo: company.company?.logo || '',
-      email: company.email || '',
-      username: company.username || '',
+      companyName: userWithCompany.company?.name || '',
+      logo: userWithCompany.company?.logo || '',
+      email: userWithCompany.email || '',
+      username: userWithCompany.username || '',
       password: '', // Leave empty for no change
-      subscription: company.subscription || 'starter'
+      subscription: userWithCompany.company?.subscription || 'starter'
     });
   };
 
@@ -892,30 +892,30 @@ function OwnerPanel() {
                     </td>
                   </tr>
                 ) : (
-                  companies.map((company) => (
-                    <tr key={company._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
+                  companies.map((companyAdmin) => (
+                    <tr key={companyAdmin._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
                       <td style={{ padding: '1.2rem 2rem' }}>
-                        <div style={{ fontWeight: '700', color: '#fff' }}>{company.companyName}</div>
+                        <div style={{ fontWeight: '700', color: '#fff' }}>{companyAdmin.company?.name || companyAdmin.companyName || '---'}</div>
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
-                        <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>@{company.username}</span>
+                        <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>@{companyAdmin.username}</span>
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>{company.email}</span>
+                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>{companyAdmin.email}</span>
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
                         <span style={{ 
                           padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600',
-                          backgroundColor: company.subscription === 'enterprise' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                          color: company.subscription === 'enterprise' ? '#8b5cf6' : '#10b981'
+                          backgroundColor: companyAdmin.company?.subscription === 'enterprise' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                          color: companyAdmin.company?.subscription === 'enterprise' ? '#8b5cf6' : '#10b981'
                         }}>
-                          {(company.subscription || 'Starter').toUpperCase()}
+                          {(companyAdmin.company?.subscription || 'starter').toUpperCase()}
                         </span>
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
                           <button 
-                            onClick={() => handleEditClick(company)}
+                            onClick={() => handleEditClick(companyAdmin)}
                             style={{ 
                               background: 'none', border: 'none', color: 'var(--color-primary)', 
                               cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600'
@@ -924,7 +924,7 @@ function OwnerPanel() {
                             {isAr ? 'تعديل' : 'Edit'}
                           </button>
                           <button 
-                            onClick={() => handleDeleteCompany(company._id)}
+                            onClick={() => handleDeleteCompany(companyAdmin._id)}
                             style={{ 
                               background: 'none', border: 'none', color: '#ef4444', 
                               cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600'
