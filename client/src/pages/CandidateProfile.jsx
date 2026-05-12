@@ -339,10 +339,6 @@ function CandidateProfile() {
       </div>
       </div>
       
-      {/* Required for the spinner animation */}
-      <style>{`
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

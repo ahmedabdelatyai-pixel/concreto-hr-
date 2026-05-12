@@ -20,7 +20,6 @@ const ProtectedRoute = ({ children, requiredRoles = null }) => {
             animation: 'spin 1s linear infinite', margin: '0 auto 1.5rem' 
           }}></div>
           <p style={{ color: 'rgba(255,255,255,0.6)' }}>{document.documentElement.lang === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );

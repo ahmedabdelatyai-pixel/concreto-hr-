@@ -428,17 +428,8 @@ function LandingPage() {
           width: '10px', height: '10px', borderRadius: '50%',
           backgroundColor: serverStatus === 'online' ? '#10b981' : (serverStatus === 'offline' ? '#ef4444' : '#fca311'),
           boxShadow: serverStatus === 'online' ? '0 0 10px #10b981' : 'none',
-          animation: serverStatus === 'online' ? 'pulse 2s infinite' : 'none'
+          animation: serverStatus === 'online' ? 'pulseShadow 2s infinite' : 'none'
         }}></div>
-        <style>
-          {`
-            @keyframes pulse {
-              0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-              70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-              100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-            }
-          `}
-        </style>
         <span style={{ color: '#fff', letterSpacing: '0.5px' }}>
           {serverStatus === 'online' ? (isArabic ? 'الشبكة العصبية: نشطة' : 'Neural Network: Active') : (isArabic ? 'الشبكة العصبية: غير متصلة' : 'Neural Network: Offline')}
         </span>
