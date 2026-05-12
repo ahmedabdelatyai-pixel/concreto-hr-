@@ -487,6 +487,24 @@ router.post('/plans', ownerOnly, async (req, res) => {
   }
 });
 
+// DELETE — Remove a plan
+router.delete('/plans/:name', ownerOnly, async (req, res) => {
+  try {
+    const Plan = require('../models/Plan');
+    const name = req.params.name.toLowerCase();
+    
+    // Prevent deleting default critical starter plan if needed, but let's allow total owner control as requested
+    const deleted = await Plan.findOneAndDelete({ name });
+    if (!deleted) {
+      return res.status(404).json({ message: `Plan "${name}" not found.` });
+    }
+
+    res.json({ message: `Plan "${deleted.displayName || name}" deleted successfully!`, deletedName: name });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
 
 

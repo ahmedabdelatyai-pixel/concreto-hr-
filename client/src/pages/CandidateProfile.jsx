@@ -331,11 +331,77 @@ function CandidateProfile() {
           </button>
           
           {isDirectApply && (
-            <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.8rem', color: '#fca311' }}>
-              {isArabic ? '💡 أنت الآن في وضع التجربة الحي. جرب مهارات المحاور الذكي!' : '💡 You are in Live Demo Mode. Test the AI Interviewer!'}
+            <div style={{ 
+              marginTop: '1rem', padding: '1rem', borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(252,163,17,0.15), rgba(239,68,68,0.05))',
+              border: '1px solid rgba(252,163,17,0.3)', textAlign: 'center'
+            }}>
+              <div style={{ color: '#fca311', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                👑 {isArabic ? 'وضع المعاينة الحية (Live Demo)' : 'Live Demo Mode'}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem', lineHeight: '1.6' }}>
+                {isArabic 
+                  ? 'أنت تختبر النسخة التجريبية السريعة. عند الاشتراك، يحصل أصحاب العمل على تقييمات ذكاء اصطناعي أعمق بكثير عبر خوادمنا الخاصة مع حماية صارمة للنزاهة.' 
+                  : 'Experience a fast simulation. Active subscriptions empower employers with profoundly deeper server-side neural assessments and robust integrity controls.'}
+              </div>
             </div>
           )}
         </form>
+      </div>
+
+      {/* HOW IT WORKS / EXPLANATORY WORKFLOW GUIDE (EASILY EDITABLE BELOW) */}
+      <div style={{
+        width: '100%', maxWidth: '750px', marginTop: '2rem', zIndex: 10,
+        background: 'rgba(10, 17, 32, 0.6)', border: '1px solid rgba(255,255,255,0.05)',
+        borderRadius: '20px', padding: '2rem', backdropFilter: 'blur(10px)'
+      }}>
+        <h3 style={{ textAlign: 'center', color: '#a5b4fc', fontSize: '1.2rem', marginBottom: '1.5rem', fontWeight: '700' }}>
+          💡 {isArabic ? 'كيف تعمل منصة المقابلات الذكية؟' : 'How the Smart Interview Platform Works'}
+        </h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.25rem' }}>
+          
+          <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>📄</div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff', marginBottom: '0.25rem' }}>
+              {isArabic ? '1. رفع السيرة الذاتية' : '1. Upload CV'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>
+              {isArabic ? 'يقوم الذكاء الاصطناعي بتحليل مهاراتك وخبراتك فوراً.' : 'AI instantly parses your skills and professional background.'}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>🧠</div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff', marginBottom: '0.25rem' }}>
+              {isArabic ? '2. أسئلة مخصصة' : '2. Tailored Questions'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>
+              {isArabic ? 'توليد أسئلة دقيقة تتطابق مع متطلبات الوظيفة وسيرتك.' : 'Generates precise interview questions aligning with the JD.'}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>🎙️</div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff', marginBottom: '0.25rem' }}>
+              {isArabic ? '3. المقابلة التفاعلية' : '3. Immersive Session'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>
+              {isArabic ? 'أجب صوتياً أو كتابياً في بيئة تفاعلية مزودة بمراقب نزاهة.' : 'Respond via text or voice in an interactive proctored environment.'}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>📊</div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff', marginBottom: '0.25rem' }}>
+              {isArabic ? '4. التقييم الفوري' : '4. Instant Scoring'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>
+              {isArabic ? 'إصدار تقرير شامل لصاحب العمل يوضح نقاط القوة والفجوات.' : 'Delivers detailed psychometric reports and gap analysis.'}
+            </div>
+          </div>
+
+        </div>
       </div>
       </div>
       

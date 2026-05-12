@@ -338,7 +338,24 @@ function OwnerPanel() {
       await api.put(`/owner/plans/${planName}`, updates, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
       setPlanSuccess(isAr ? `✅ تم تحديث باقة "${planName}" بنجاح!` : `✅ Plan "${planName}" updated!`);
       setEditingPlan(null);
+      // Immediately update local state so changes show instantly in frontend without waiting
+      setPlans(prev => prev.map(p => p.name === planName ? { ...p, ...updates } : p));
       fetchPlans();
+      setTimeout(() => setPlanSuccess(''), 4000);
+    } catch (err) {
+      setPlanError(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleDeletePlan = async (planName, displayName) => {
+    if (!window.confirm(isAr ? `⚠️ هل أنت متأكد من حذف باقة "${displayName || planName}" نهائياً؟` : `⚠️ Are you sure you want to permanently delete plan "${displayName || planName}"?`)) return;
+    setPlanError('');
+    setPlanSuccess('');
+    try {
+      await api.delete(`/owner/plans/${planName}`, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setPlanSuccess(isAr ? `🗑️ تم حذف باقة "${displayName || planName}" بنجاح!` : `🗑️ Plan "${displayName || planName}" deleted successfully!`);
+      // Update local state instantly so it disappears from the frontend immediately
+      setPlans(prev => prev.filter(p => p.name !== planName));
       setTimeout(() => setPlanSuccess(''), 4000);
     } catch (err) {
       setPlanError(err.response?.data?.message || err.message);
@@ -1359,16 +1376,29 @@ function OwnerPanel() {
                           )}
                         </div>
 
-                        <button
-                          onClick={() => setEditingPlan(plan.name)}
-                          style={{
-                            width: '100%', padding: '0.6rem', borderRadius: '8px', cursor: 'pointer',
-                            background: 'rgba(252,163,17,0.1)', border: '1px solid rgba(252,163,17,0.3)',
-                            color: '#fca311', fontWeight: '700', fontSize: '0.85rem', transition: 'all 0.2s'
-                          }}
-                        >
-                          ✏️ {isAr ? 'تعديل الباقة' : 'Edit Plan'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                          <button
+                            onClick={() => setEditingPlan(plan.name)}
+                            style={{
+                              flex: 1, padding: '0.6rem', borderRadius: '8px', cursor: 'pointer',
+                              background: 'rgba(252,163,17,0.1)', border: '1px solid rgba(252,163,17,0.3)',
+                              color: '#fca311', fontWeight: '700', fontSize: '0.85rem', transition: 'all 0.2s'
+                            }}
+                          >
+                            ✏️ {isAr ? 'تعديل' : 'Edit'}
+                          </button>
+                          <button
+                            onClick={() => handleDeletePlan(plan.name, plan.displayName)}
+                            style={{
+                              padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer',
+                              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                              color: '#ef4444', fontWeight: '700', fontSize: '0.85rem', transition: 'all 0.2s'
+                            }}
+                            title={isAr ? 'حذف الباقة' : 'Delete Plan'}
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

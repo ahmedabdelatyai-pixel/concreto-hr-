@@ -426,6 +426,69 @@ function AdminDashboard() {
         {/* ========== ANALYTICS TAB ========== */}
         {activeTab === 'analytics' && (
           <div className="fade-in">
+            
+            {/* HOW TO USE THE DASHBOARD GUIDE (EASILY EDITABLE FOR CLIENTS) */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.04))',
+              border: '1px solid rgba(99,102,241,0.2)',
+              borderRadius: '16px',
+              padding: '1.5rem 2rem',
+              marginBottom: '2rem',
+              boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)'
+            }}>
+              <h3 style={{ color: '#a5b4fc', fontSize: '1.15rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700' }}>
+                💡 {isAr ? 'دليل استخدام لوحة التحكم للشركات' : 'Employer Dashboard Quick Guide'}
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', borderLeft: '3px solid #6366f1' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#fff', marginBottom: '0.3rem' }}>
+                    📋 {isAr ? '1. إدارة الوظائف والأسئلة' : '1. Manage Jobs & Questions'}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.6' }}>
+                    {isAr 
+                      ? 'انتقل لتبويب "الوظائف" لإنشاء وظيفة جديدة، أضف الوصف (JD) وحدد عدد وطبيعة الأسئلة المخصصة التي ترغب بطرحها.' 
+                      : 'Switch to the "Jobs" tab to post openings, configure custom JD guidelines, and set exact target question counts.'}
+                  </p>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', borderLeft: '3px solid #3b82f6' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#fff', marginBottom: '0.3rem' }}>
+                    🔗 {isAr ? '2. تتبع مصادر التقديم' : '2. Track Application Sourcing'}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.6' }}>
+                    {isAr 
+                      ? 'انسخ رابط التقديم الخاص بكل منصة (واتساب، لينكد إن، الموقع) من تفاصيل الوظيفة لمعرفة مصدر كل متقدم تلقائياً.' 
+                      : 'Copy platform-specific share links from job details to automatically attribute UTM campaign sources for each candidate.'}
+                  </p>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', borderLeft: '3px solid #10b981' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#fff', marginBottom: '0.3rem' }}>
+                    👥 {isAr ? '3. مراجعة تقارير المتقدمين' : '3. Review Proctored Reports'}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.6' }}>
+                    {isAr 
+                      ? 'من تبويب "المتقدمون"، استعرض تحليل الذكاء الاصطناعي للسيرة الذاتية، الإجابات، ومقياس النزاهة ومكافحة الغش.' 
+                      : 'Access the "Applicants" tab to examine auto-scored evaluations, psychometric parameters, and anti-cheat confidence metrics.'}
+                  </p>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', borderLeft: '3px solid #fca311' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#fff', marginBottom: '0.3rem' }}>
+                    ⚡ {isAr ? '4. الباقات والصلاحيات' : '4. Plans & Permissions'}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.6' }}>
+                    {isAr 
+                      ? 'تُحدد باقة شركتك حدود الوظائف المتاحة والمميزات المتقدمة مثل كشف الغش المتقدم (Integrity Meter).' 
+                      : 'Your active subscription plan enforces job posting limits and enables enterprise features like strict integrity monitoring.'}
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
               {[

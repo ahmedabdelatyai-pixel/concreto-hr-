@@ -39,14 +39,31 @@ function CvUpload() {
           const base64Data = reader.result;
           setCvFile({ name: file.name, type: file.type, data: base64Data });
 
+          const isDemoMode = useInterviewStore.getState().isDemoMode;
+
           // Step 1: Analyze CV
           setProcessingStep(isArabic ? 'جاري تحليل السيرة الذاتية...' : 'Analyzing CV...');
           let atsResult = null;
-          try {
-            atsResult = await analyzeCv(file);
-          } catch (cvErr) {
-            console.warn('CV Analysis skipped due to error:', cvErr.message);
+          if (isDemoMode) {
+            // Mock ATS Result to completely save API usage
+            atsResult = {
+              summary: isArabic ? "مرشح تجريبي يتمتع بمهارات ممتازة في تطوير البرمجيات." : "Demo candidate with excellent software engineering skills.",
+              skills: ["React", "JavaScript", "Node.js", "Teamwork"],
+              experience_years: 4,
+              education: "B.Sc. in Computer Science",
+              technical_match: 85,
+              is_fit_for_interview: true
+            };
+            // Simulate short loading
+            await new Promise(r => setTimeout(r, 600));
+          } else {
+            try {
+              atsResult = await analyzeCv(file);
+            } catch (cvErr) {
+              console.warn('CV Analysis skipped due to error:', cvErr.message);
+            }
           }
+
           setCvData(atsResult || {
             summary: "CV Analysis unavailable.",
             skills: [],
@@ -63,8 +80,6 @@ function CvUpload() {
           const utm_source = candidate.utm_source || searchParams.get('utm_source') || 'direct';
           const utm_medium = candidate.utm_medium || searchParams.get('utm_medium') || '';
           const utm_campaign = candidate.utm_campaign || searchParams.get('utm_campaign') || '';
-
-          const isDemoMode = useInterviewStore.getState().isDemoMode;
 
           if (isDemoMode) {
             useInterviewStore.getState().setCandidateInfo({
@@ -104,19 +119,41 @@ function CvUpload() {
 
           let finalQuestions = [];
           let correctAnswers = {};
-          try {
-            const result = await generateQuestions(
-              candidate.jobTitle,
-              atsResult,
-              i18n.language,
-              customBank,
-              targetCount,
-              jobDescription
-            );
-            finalQuestions = result.questions || [];
-            correctAnswers = result.correctAnswers || {};
-          } catch (e) {
-            console.error('AI Generation failed:', e.message);
+
+          if (isDemoMode) {
+            // Completely mock questions offline to save API bandwidth
+            const demoQuestions = isArabic ? [
+              { type: 'truefalse', question: 'هل تعتبر لغة جافاسكربت لغة برمجة كائنية التوجه بالكامل؟', category: 'Technical', weight: 1 },
+              { type: 'mcq', question: 'ما هي الميزة الرئيسية لاستخدام React؟', choices: ['DOM الافتراضي', 'قواعد البيانات', 'التصميم فقط', 'لا شيء مما سبق'], correctAnswer: 'DOM الافتراضي', category: 'Technical', weight: 1.2 },
+              { type: 'essay', question: 'تحدث عن مشروع معقد قمت ببنائه وأبرز التحديات التي واجهتها.', category: 'Behavioral', weight: 1 }
+            ] : [
+              { type: 'truefalse', question: 'Is JavaScript considered a purely functional programming language?', category: 'Technical', weight: 1 },
+              { type: 'mcq', question: 'What is the core feature of React?', choices: ['Virtual DOM', 'Direct Database Access', 'Only CSS Styling', 'None of the above'], correctAnswer: 'Virtual DOM', category: 'Technical', weight: 1.2 },
+              { type: 'essay', question: 'Describe a complex project you developed and the challenges you overcame.', category: 'Behavioral', weight: 1 }
+            ];
+            
+            // Map correct answers indices
+            demoQuestions.forEach((dq, idx) => {
+              if (dq.correctAnswer) correctAnswers[idx] = dq.correctAnswer;
+              else if (dq.type === 'truefalse') correctAnswers[idx] = dq.question.includes('React') || dq.question.includes('جافاسكربت') ? 'true' : 'false';
+            });
+            finalQuestions = demoQuestions;
+            await new Promise(r => setTimeout(r, 600));
+          } else {
+            try {
+              const result = await generateQuestions(
+                candidate.jobTitle,
+                atsResult,
+                i18n.language,
+                customBank,
+                targetCount,
+                jobDescription
+              );
+              finalQuestions = result.questions || [];
+              correctAnswers = result.correctAnswers || {};
+            } catch (e) {
+              console.error('AI Generation failed:', e.message);
+            }
           }
 
           if (finalQuestions.length > 0) {

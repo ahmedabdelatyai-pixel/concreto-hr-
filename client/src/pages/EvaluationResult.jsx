@@ -21,6 +21,7 @@ function EvaluationResult() {
   // ✅ NEW
   const correctAnswers = useInterviewStore(state => state.correctAnswers);
   const cheatAttempts = useInterviewStore(state => state.cheatAttempts);
+  const isDemoMode = useInterviewStore(state => state.isDemoMode);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
@@ -32,15 +33,35 @@ function EvaluationResult() {
         const cvData = useInterviewStore.getState().cvData;
         const jobDescription = useInterviewStore.getState().candidate?.jobDescription || '';
 
-        // ✅ Pass correctAnswers, cvData, jobDescription for MCQ scoring + Gap Analysis
-        evalResult = await evaluateInterview(
-          answers,
-          candidate.jobTitle,
-          questionCategories,
-          correctAnswers,
-          cvData,
-          jobDescription
-        );
+        const isDemoMode = useInterviewStore.getState().isDemoMode;
+        if (isDemoMode) {
+          // Completely mock evaluation offline to save API quotas
+          evalResult = {
+            behavior_score: 35,
+            behavior_reasoning: document.documentElement.lang === 'ar' ? 'إجابات واضحة ومنهجية تتبع أسلوب STAR.' : 'Clear and structured answers following the STAR method.',
+            attitude_score: 28,
+            attitude_reasoning: document.documentElement.lang === 'ar' ? 'أظهر حماساً واحترافية عالية خلال المقابلة.' : 'Demonstrated enthusiasm and strong professional conduct.',
+            personality_score: 27,
+            personality_reasoning: document.documentElement.lang === 'ar' ? 'مهارات تواصل ممتازة وثقة في الطرح.' : 'Excellent communication skills and articulated confidently.',
+            total_score: 90,
+            mcq_score: 40,
+            recommendation: 'Strong Fit',
+            gap_analysis: document.documentElement.lang === 'ar' ? 'لا توجد فجوات جوهرية. المرشح يمتلك المهارات المطلوبة للوظيفة بكفاءة.' : 'No major skill gaps identified. Candidate exceeds baseline technical requirements.',
+            strengths: ['Problem Solving', 'React Architecture', 'Clear Communication'],
+            weaknesses: ['Could elaborate more on specific edge cases'],
+            answers: answers.map(a => ({ ...a, isCorrect: true, score: 10 }))
+          };
+          await new Promise(r => setTimeout(r, 500));
+        } else {
+          evalResult = await evaluateInterview(
+            answers,
+            candidate.jobTitle,
+            questionCategories,
+            correctAnswers,
+            cvData,
+            jobDescription
+          );
+        }
         setEvaluation(evalResult);
       }
 
@@ -121,6 +142,42 @@ function EvaluationResult() {
       <div className="card">
         <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>{t('evaluation.title')}</h2>
         
+        {/* PREMIUM DEMO UPSELL BANNER */}
+        {isDemoMode && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(252,163,17,0.1), rgba(239,68,68,0.05))',
+            border: '1px solid rgba(252,163,17,0.3)',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            marginBottom: '2rem',
+            boxShadow: '0 10px 25px -5px rgba(252,163,17,0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>👑</span>
+              <h4 style={{ margin: 0, color: '#fca311', fontSize: '1.1rem', fontWeight: '800' }}>
+                {i18n.language === 'ar' ? 'تقرير المعاينة التجريبي (Demo)' : 'Live Demo Evaluation Report'}
+              </h4>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)', lineHeight: '1.7' }}>
+              {i18n.language === 'ar' 
+                ? 'هذا التقرير هو محاكاة سريعة لقدرات المنصة. عند الاشتراك الفعلي، يقوم الذكاء الاصطناعي بإجراء تحليل دقيق وموسع للكلمات عبر سيرفرات متقدمة، مع تفعيل مقاييس مكافحة الغش ورصد السلوك المتقدمة لتحديد الكفاءة بدقة متناهية.' 
+                : 'This report is a fast simulation. Live subscription plans unlock advanced, server-side neural evaluation models with comprehensive anti-cheat tracking and granular psychometric scoring.'}
+            </p>
+            <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+              <button 
+                onClick={() => navigate('/admin/login')}
+                style={{
+                  background: 'linear-gradient(to right, #fca311, #f77f00)',
+                  color: '#000', border: 'none', padding: '0.5rem 1rem',
+                  borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer'
+                }}
+              >
+                {i18n.language === 'ar' ? 'سجل شركتك الآن 🚀' : 'Register Company 🚀'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* CV AI Analysis Section */}
