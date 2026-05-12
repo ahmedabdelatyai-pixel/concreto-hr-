@@ -85,7 +85,8 @@ router.post('/register', authLimiter, async (req, res) => {
       company: {
         _id: company._id,
         name: company.name,
-        subscription: company.subscription
+        subscription: company.subscription,
+        createdAt: company.createdAt
       }
     });
   } catch (err) {
@@ -141,6 +142,7 @@ router.post('/login', authLimiter, async (req, res) => {
         _id: user.company._id,
         name: user.company.name,
         subscription: user.company.subscription,
+        createdAt: user.company.createdAt,
         features: plan ? plan.features : [],
         planDetails: plan ? {
           displayName: plan.displayName,
@@ -167,6 +169,7 @@ router.get('/me', authenticate, async (req, res) => {
         _id: req.user.company._id,
         name: req.user.company.name,
         subscription: req.user.company.subscription,
+        createdAt: req.user.company.createdAt,
         features: plan ? plan.features : [],
         planDetails: plan ? {
           displayName: plan.displayName,

@@ -147,7 +147,7 @@ function OwnerPanel() {
   const [success, setSuccess] = useState('');
 
   // AI Settings State
-  const [aiSettings, setAiSettings] = useState({ systemPrompt: '', model: 'gemini-2.0-flash', updatedAt: null, isDefault: true });
+  const [aiSettings, setAiSettings] = useState({ systemPrompt: '', model: 'gemini-2.0-flash', apiKey: '', updatedAt: null, isDefault: true });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiSuccess, setAiSuccess] = useState('');
@@ -403,7 +403,8 @@ function OwnerPanel() {
     try {
       await api.post('/owner/ai-settings', {
         systemPrompt: aiSettings.systemPrompt,
-        model: aiSettings.model
+        model: aiSettings.model,
+        apiKey: aiSettings.apiKey
       }, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
       setAiSuccess(isAr ? '✅ تم حفظ إعدادات الذكاء الاصطناعي بنجاح! التغييرات ستظهر فوراً.' : '✅ AI settings saved! Changes will take effect immediately.');
       refreshAiSettings(); // Clear the client-side cache so new prompt is used
@@ -498,7 +499,8 @@ function OwnerPanel() {
     email: '',
     username: '',
     password: '',
-    subscription: ''
+    subscription: '',
+    createdAt: ''
   });
 
   // Job Editing State
@@ -528,7 +530,8 @@ function OwnerPanel() {
       email: userWithCompany.email || '',
       username: userWithCompany.username || '',
       password: '', // Leave empty for no change
-      subscription: userWithCompany.company?.subscription || 'starter'
+      subscription: userWithCompany.company?.subscription || 'starter',
+      createdAt: userWithCompany.company?.createdAt ? new Date(userWithCompany.company.createdAt).toISOString().split('T')[0] : ''
     });
   };
 
@@ -897,6 +900,7 @@ function OwnerPanel() {
                   <th style={{ padding: '1rem 2rem' }}>{isAr ? 'الشركة' : 'Company'}</th>
                   <th style={{ padding: '1rem 2rem' }}>{isAr ? 'المسؤول' : 'Admin User'}</th>
                   <th style={{ padding: '1rem 2rem' }}>{isAr ? 'البريد' : 'Email'}</th>
+                  <th style={{ padding: '1rem 2rem' }}>{isAr ? 'تاريخ بدء الاشتراك' : 'Start Date'}</th>
                   <th style={{ padding: '1rem 2rem' }}>{isAr ? 'الباقة' : 'Plan'}</th>
                   <th style={{ padding: '1rem 2rem' }}>{isAr ? 'الإجراء' : 'Actions'}</th>
                 </tr>
@@ -919,6 +923,11 @@ function OwnerPanel() {
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
                         <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>{companyAdmin.email}</span>
+                      </td>
+                      <td style={{ padding: '1.2rem 2rem' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: '600' }}>
+                          {companyAdmin.company?.createdAt ? new Date(companyAdmin.company.createdAt).toLocaleDateString() : '---'}
+                        </span>
                       </td>
                       <td style={{ padding: '1.2rem 2rem' }}>
                         <span style={{ 
@@ -1058,21 +1067,51 @@ function OwnerPanel() {
                 </span>
               </div>
 
-              {/* Model Selector */}
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
-                  {isAr ? '🤖 نموذج الذكاء الاصطناعي' : '🤖 AI Model'}
-                </label>
-                <select
-                  className="form-control"
-                  value={aiSettings.model}
-                  onChange={e => setAiSettings({ ...aiSettings, model: e.target.value })}
-                  style={{ maxWidth: '300px', padding: '0.7rem' }}
-                >
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast & Cheap)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Balanced)</option>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Most Powerful)</option>
-                </select>
+              {/* API Key & Model Configuration */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                {/* Model Selector */}
+                <div className="form-group">
+                  <label className="form-label" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
+                    {isAr ? '🤖 نموذج الذكاء الاصطناعي' : '🤖 AI Model'}
+                  </label>
+                  <select
+                    className="form-control"
+                    value={aiSettings.model}
+                    onChange={e => setAiSettings({ ...aiSettings, model: e.target.value })}
+                    style={{ width: '100%', padding: '0.7rem' }}
+                  >
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast & Cheap)</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Balanced)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Most Powerful)</option>
+                  </select>
+                </div>
+
+                {/* Direct API Key Integration */}
+                <div className="form-group">
+                  <label className="form-label" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🔑 {isAr ? 'مفتاح الـ API الخاص' : 'Custom API Key'}</span>
+                    <span style={{ fontSize: '0.7rem', color: '#10b981' }}>{isAr ? 'اختياري للتجاوز' : 'Optional override'}</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={aiSettings.apiKey || ''}
+                      onChange={e => setAiSettings({ ...aiSettings, apiKey: e.target.value })}
+                      placeholder={isAr ? 'أدخل المفتاح هنا...' : 'Enter AI API Key...'}
+                      style={{ flex: 1, padding: '0.7rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveAiSettings}
+                      className="btn btn-primary"
+                      style={{ padding: '0.7rem 1rem', fontSize: '0.85rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', whiteSpace: 'nowrap' }}
+                      title={isAr ? 'ربط الموقع بالـ API فوراً' : 'Connect Site to API Immediately'}
+                    >
+                      🔗 {isAr ? 'ربط الـ API' : 'Connect API'}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* System Prompt Editor */}
@@ -1640,6 +1679,10 @@ function OwnerPanel() {
                   <div className="form-group">
                     <label className="form-label">{isAr ? 'البريد' : 'Email'}</label>
                     <input type="email" className="form-control" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? 'تاريخ بدء الاشتراك' : 'Subscription Start Date'}</label>
+                    <input type="date" className="form-control" value={editForm.createdAt || ''} onChange={e => setEditForm({...editForm, createdAt: e.target.value})} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">{isAr ? 'كلمة المرور الجديدة' : 'New Password'}</label>

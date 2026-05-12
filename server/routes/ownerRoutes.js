@@ -83,7 +83,7 @@ router.get('/companies', ownerOnly, async (req, res) => {
 // UPDATE a company/admin
 router.patch('/companies/:id', ownerOnly, async (req, res) => {
   try {
-    const { companyName, email, username, password, subscription, logo } = req.body;
+    const { companyName, email, username, password, subscription, logo, createdAt } = req.body;
     const user = await User.findById(req.params.id).populate('company');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -95,6 +95,7 @@ router.patch('/companies/:id', ownerOnly, async (req, res) => {
       if (email) company.email = email;
       if (subscription) company.subscription = subscription.toLowerCase();
       if (logo !== undefined) company.logo = logo;
+      if (createdAt) company.createdAt = new Date(createdAt);
       await company.save();
     }
 
@@ -148,9 +149,9 @@ router.get('/ai-settings', ownerOnly, async (req, res) => {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ai_system_prompt' });
     if (!setting) {
-      return res.json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-1.5-flash', updatedAt: null, isDefault: true });
+      return res.json({ systemPrompt: DEFAULT_SYSTEM_PROMPT, model: 'gemini-1.5-flash', apiKey: '', updatedAt: null, isDefault: true });
     }
-    res.json({ systemPrompt: setting.value.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting.value.model || 'gemini-1.5-flash', updatedAt: setting.updatedAt, isDefault: false });
+    res.json({ systemPrompt: setting.value.systemPrompt || DEFAULT_SYSTEM_PROMPT, model: setting.value.model || 'gemini-1.5-flash', apiKey: setting.value.apiKey || '', updatedAt: setting.updatedAt, isDefault: false });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -160,13 +161,13 @@ router.get('/ai-settings', ownerOnly, async (req, res) => {
 router.post('/ai-settings', ownerOnly, async (req, res) => {
   try {
     const SystemSettings = require('../models/SystemSettings');
-    const { systemPrompt, model } = req.body;
+    const { systemPrompt, model, apiKey } = req.body;
     if (!systemPrompt || systemPrompt.trim().length < 50) {
       return res.status(400).json({ message: 'System prompt is too short (min 50 chars).' });
     }
     await SystemSettings.findOneAndUpdate(
       { key: 'ai_system_prompt' },
-      { key: 'ai_system_prompt', value: { systemPrompt: systemPrompt.trim(), model: model || 'gemini-1.5-flash' }, updatedAt: new Date() },
+      { key: 'ai_system_prompt', value: { systemPrompt: systemPrompt.trim(), model: model || 'gemini-1.5-flash', apiKey: (apiKey || '').trim() }, updatedAt: new Date() },
       { upsert: true, new: true }
     );
     res.json({ message: 'AI settings saved successfully!' });

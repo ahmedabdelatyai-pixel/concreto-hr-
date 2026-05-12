@@ -40,6 +40,12 @@ function AdminDashboard() {
   
   // Check if user is authenticated either way
   const isUserLoggedIn = isAuthenticated || isAdminLoggedIn;
+  const isDemoMode = isAdminLoggedIn && !isAuthenticated;
+  
+  // Subscription calculation (30 days term)
+  const startDate = company?.createdAt ? new Date(company.createdAt) : new Date();
+  const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const formatDate = (d) => d.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   
   // Extract features for UI locking
   const companyFeatures = company?.features || [];
@@ -398,6 +404,71 @@ function AdminDashboard() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+        {/* Live Demo Promotional Banner */}
+        {isDemoMode && (
+          <div className="fade-in" style={{
+            background: 'linear-gradient(135deg, rgba(252,163,17,0.12), rgba(249,115,22,0.05))',
+            border: '1px solid rgba(252,163,17,0.3)',
+            borderRadius: '16px',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            gap: '1rem',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '2rem' }}>👑</span>
+            <div>
+              <div style={{ fontWeight: '800', color: '#fca311', fontSize: '1.1rem', marginBottom: '0.25rem' }}>
+                {isAr ? 'وضع المعاينة الحية (Live Demo)' : 'Live Demo Mode'}
+              </div>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)', lineHeight: '1.5' }}>
+                {isAr 
+                  ? 'أنت تختبر النسخة التجريبية السريعة. عند الاشتراك، يحصل أصحاب العمل على تقييمات ذكاء اصطناعي أعمق بكثير عبر خوادمنا الخاصة مع حماية صارمة للنزاهة.' 
+                  : 'You are testing the fast trial version. Upon subscribing, employers receive much deeper AI evaluations through our private servers with strict integrity protection.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Subscription Info Banner */}
+        <div className="fade-in" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: '12px',
+          padding: '1rem 1.5rem',
+          marginBottom: '2rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>⏳</span>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{isAr ? 'حالة الاشتراك' : 'Subscription Status'}</div>
+              <div style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '0.95rem' }}>
+                {isDemoMode ? (isAr ? 'حساب تجريبي (30 يوم)' : 'Demo Account (30 Days)') : `${(company?.subscription || 'starter').toUpperCase()} Plan`}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{isAr ? 'بداية الاشتراك' : 'Subscription Start'}</div>
+              <div style={{ fontWeight: '600', color: '#10b981', fontSize: '0.9rem' }}>📅 {formatDate(startDate)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{isAr ? 'نهاية الاشتراك' : 'Subscription End'}</div>
+              <div style={{ fontWeight: '600', color: '#ef4444', fontSize: '0.9rem' }}>🛑 {formatDate(endDate)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{isAr ? 'المدة المتبقية' : 'Duration'}</div>
+              <div style={{ fontWeight: '600', color: '#fca311', fontSize: '0.9rem' }}>⏱️ {isAr ? '30 يوم' : '30 Days'}</div>
+            </div>
+          </div>
+        </div>
+
         {/* Tab Buttons */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem', flexWrap: 'wrap' }}>
           <button
