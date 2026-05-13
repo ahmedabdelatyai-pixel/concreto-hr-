@@ -19,7 +19,7 @@ const generateToken = (userId, companyId) => {
 // Register New Company & User
 router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { username, email, password, confirmPassword, companyName, logo, fullName } = req.body;
+    const { username, email, password, confirmPassword, companyName, logo, fullName, region } = req.body;
 
     // Validation
     if (!username || !email || !password || !companyName) {
@@ -59,6 +59,8 @@ router.post('/register', authLimiter, async (req, res) => {
       name: companyName,
       logo: logo || '',
       email: email,
+      subscription: region === 'saudi' ? 'saudi_starter' : 'starter',
+      country: region === 'saudi' ? 'Saudi Arabia' : 'Egypt',
       active: true
     });
     await company.save();

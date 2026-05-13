@@ -537,7 +537,7 @@ router.get('/plans/public', async (req, res) => {
   try {
     const Plan = require('../models/Plan');
     const plans = await Plan.find({ active: true }).sort({ order: 1 })
-      .select('name displayName jobLimit cvLimit price description order');
+      .select('name displayName jobLimit cvLimit price description order region features');
     res.json(plans);
   } catch (err) {
     res.status(200).json([]); // Don't break frontend on error
@@ -551,7 +551,15 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
   }
   try {
     const Plan = require('../models/Plan');
-    const { jobLimit, cvLimit, price, displayName, description, active, features } = req.body;
+    const targetName = req.params.name.toLowerCase();
+    const existing = await Plan.findOne({ name: targetName });
+    if (!existing) return res.status(404).json({ message: `Plan "${req.params.name}" not found.` });
+
+    if (req.ownerRole === 'ksa_branch' && existing.region !== 'saudi') {
+      return res.status(403).json({ message: 'صلاحيتك محصورة بتعديل باقات فرع السعودية فقط | Restricted to Saudi plans' });
+    }
+
+    const { jobLimit, cvLimit, price, displayName, description, active, features, region } = req.body;
 
     const updates = { updatedAt: new Date() };
     if (jobLimit !== undefined) updates.jobLimit = Number(jobLimit);
@@ -561,14 +569,13 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
     if (description !== undefined) updates.description = description;
     if (active !== undefined) updates.active = active;
     if (features !== undefined) updates.features = features;
+    if (region !== undefined && req.ownerRole === 'main_owner') updates.region = region;
 
     const plan = await Plan.findOneAndUpdate(
-      { name: req.params.name.toLowerCase() },
+      { name: targetName },
       updates,
       { new: true, upsert: false }
     );
-
-    if (!plan) return res.status(404).json({ message: `Plan "${req.params.name}" not found.` });
 
     res.json({ message: `Plan "${plan.displayName}" updated successfully!`, plan });
   } catch (err) {
@@ -583,7 +590,7 @@ router.post('/plans', ownerOnly, async (req, res) => {
   }
   try {
     const Plan = require('../models/Plan');
-    const { name, displayName, jobLimit, cvLimit, price, description } = req.body;
+    const { name, displayName, jobLimit, cvLimit, price, description, region, features } = req.body;
 
     if (!name || !displayName) {
       return res.status(400).json({ message: 'name and displayName are required.' });
@@ -599,6 +606,8 @@ router.post('/plans', ownerOnly, async (req, res) => {
       cvLimit: Number(cvLimit) || 50,
       price: Number(price) || 0,
       description: description || '',
+      region: region || 'egypt',
+      features: features || ['basic_dashboard'],
       order: 99
     });
 

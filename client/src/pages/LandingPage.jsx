@@ -31,6 +31,7 @@ function LandingPage() {
   const [subSuccess, setSubSuccess] = useState('');
   const [subError, setSubError] = useState('');
   const [branding, setBranding] = useState({ siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
+  const [pricingRegion, setPricingRegion] = useState('egypt'); // 'egypt' or 'saudi'
 
   const handleSubSubmit = async (e) => {
     e.preventDefault();
@@ -240,41 +241,79 @@ function LandingPage() {
 
       {/* Pricing Section */}
       <section id="pricing" style={{ padding: '8rem 10%', background: '#080e1a', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1rem' }}>
             {isArabic ? 'باقات السعة الذكية' : 'Intelligence Capacity Plans'}
           </h2>
-          <div style={{ width: '60px', height: '4px', backgroundColor: 'var(--color-primary)', margin: '0 auto' }}></div>
+          <div style={{ width: '60px', height: '4px', backgroundColor: 'var(--color-primary)', margin: '0 auto 2rem' }}></div>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1.1rem', marginBottom: '2rem' }}>
+            {isArabic ? 'اختر المنطقة الجغرافية لعرض الباقات والأسعار المخصصة لشركتك:' : 'Select your region to view customized subscription pricing:'}
+          </p>
+        </div>
+
+        {/* Sleek Region Pricing Switcher Toggle */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4rem' }}>
+          <div style={{
+            display: 'inline-flex',
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '999px',
+            padding: '6px'
+          }}>
+            <button
+              onClick={() => setPricingRegion('egypt')}
+              style={{
+                padding: '0.8rem 2.5rem',
+                borderRadius: '999px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: '800',
+                fontSize: '1rem',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: pricingRegion === 'egypt' ? branding.primaryColor : 'transparent',
+                color: pricingRegion === 'egypt' ? '#fff' : 'rgba(255,255,255,0.5)',
+                boxShadow: pricingRegion === 'egypt' ? `0 4px 20px ${branding.primaryColor}66` : 'none'
+              }}
+            >
+              🇪🇬 {isArabic ? 'باقات مصر' : 'Egypt Plans'}
+            </button>
+            <button
+              onClick={() => setPricingRegion('saudi')}
+              style={{
+                padding: '0.8rem 2.5rem',
+                borderRadius: '999px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: '800',
+                fontSize: '1rem',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: pricingRegion === 'saudi' ? '#10b981' : 'transparent',
+                color: pricingRegion === 'saudi' ? '#fff' : 'rgba(255,255,255,0.5)',
+                boxShadow: pricingRegion === 'saudi' ? '0 4px 20px rgba(16,185,129,0.4)' : 'none'
+              }}
+            >
+              🇸🇦 {isArabic ? 'باقات السعودية' : 'Saudi Plans'}
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-          {(dbPlans.length > 0 ? dbPlans : [
-            {
-              name: 'starter',
-              displayName: 'Core Intelligence',
-              price: 0,
-              jobLimit: 5,
-              cvLimit: 50
-            },
-            {
-              name: 'professional',
-              displayName: 'Pro Cognitive',
-              price: 49,
-              jobLimit: 15,
-              cvLimit: 300
-            },
-            {
-              name: 'enterprise',
-              displayName: 'Enterprise Neural',
-              price: 199,
-              jobLimit: 9999,
-              cvLimit: 9999
-            }
-          ]).map((plan, i) => {
-            const isPro = plan.name === 'professional';
-            const color = plan.name === 'starter' ? '#10b981' : (plan.name === 'professional' ? '#3b82f6' : '#8b5cf6');
-            const descAr = plan.name === 'starter' ? 'سعة معالجة ذكية للشركات الناشئة التي تبحث عن الدقة.' : (plan.name === 'professional' ? 'قوة تحليلية متقدمة لفرق التوظيف الطموحة.' : 'حلول شاملة وقدرات معالجة فائقة للمؤسسات الكبرى.');
-            const descEn = plan.name === 'starter' ? 'Smart processing capacity for startups seeking precision.' : (plan.name === 'professional' ? 'Advanced analytical power for ambitious recruitment teams.' : 'Comprehensive solutions and superior processing for large enterprises.');
+          {(() => {
+            const allFetched = dbPlans.length > 0 ? dbPlans : [
+              { name: 'starter', displayName: 'Core Intelligence', price: 29, jobLimit: 5, cvLimit: 50, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation'] },
+              { name: 'professional', displayName: 'Pro Cognitive', price: 99, jobLimit: 20, cvLimit: 200, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation', 'disc_profiling', 'pdf_reports'] },
+              { name: 'enterprise', displayName: 'Enterprise Neural', price: 299, jobLimit: 9999, cvLimit: 9999, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation', 'disc_profiling', 'pdf_reports', 'priority_support', 'advanced_anti_cheat'] },
+              { name: 'saudi_starter', displayName: 'باقة الذكاء الأساسي (السعودية)', price: 199, jobLimit: 5, cvLimit: 50, region: 'saudi', features: ['basic_dashboard', 'ai_evaluation'] },
+              { name: 'saudi_professional', displayName: 'باقة الإدراك الاحترافي (السعودية)', price: 499, jobLimit: 20, cvLimit: 200, region: 'saudi', features: ['basic_dashboard', 'ai_evaluation', 'disc_profiling', 'pdf_reports'] },
+              { name: 'saudi_enterprise', displayName: 'باقة العصب المؤسسي (السعودية)', price: 999, jobLimit: 9999, cvLimit: 9999, region: 'saudi', features: ['basic_dashboard', 'ai_evaluation', 'disc_profiling', 'pdf_reports', 'priority_support', 'advanced_anti_cheat'] }
+            ];
+
+            return allFetched.filter(p => !p.region || p.region === pricingRegion || p.region === 'both');
+          })().map((plan, i) => {
+            const isPro = plan.name.includes('professional');
+            const color = plan.name.includes('starter') ? '#10b981' : (plan.name.includes('professional') ? '#3b82f6' : '#8b5cf6');
+            const descAr = plan.description || (plan.name.includes('starter') ? 'سعة معالجة ذكية للشركات الناشئة التي تبحث عن الدقة.' : (plan.name.includes('professional') ? 'قوة تحليلية متقدمة لفرق التوظيف الطموحة.' : 'حلول شاملة وقدرات معالجة فائقة للمؤسسات الكبرى.'));
+            const descEn = plan.description || (plan.name.includes('starter') ? 'Smart processing capacity for startups seeking precision.' : (plan.name.includes('professional') ? 'Advanced analytical power for ambitious recruitment teams.' : 'Comprehensive solutions and superior processing for large enterprises.'));
             
             return (
               <div key={plan._id || i} style={{
@@ -295,13 +334,14 @@ function LandingPage() {
                   </div>
                 )}
                 <h3 style={{ fontSize: '1.6rem', fontWeight: '800', marginBottom: '0.5rem', color: color, textAlign: 'center' }}>
-                  {isArabic ? (plan.name === 'starter' ? 'الذكاء الأساسي' : (plan.name === 'professional' ? 'الإدراك الاحترافي' : 'العصب المؤسسي')) : plan.displayName}
+                  {plan.displayName}
                 </h3>
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', textAlign: 'center', minHeight: '50px', marginBottom: '2rem' }}>
                   {isArabic ? descAr : descEn}
                 </p>
                 <div style={{ fontSize: '3.5rem', fontWeight: '900', textAlign: 'center', marginBottom: '2rem' }}>
-                  ${plan.price}<span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>/{isArabic ? 'شهر' : 'mo'}</span>
+                  <span style={{ fontSize: '1.5rem', verticalAlign: 'super', color: 'rgba(255,255,255,0.6)' }}>$</span>{plan.price}
+                  <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>/{isArabic ? 'شهر' : 'mo'}</span>
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 3rem 0', flex: 1 }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
@@ -323,7 +363,7 @@ function LandingPage() {
                 <button 
                   className="btn" 
                   onClick={() => {
-                    setSelectedPlanName(isArabic ? (plan.name === 'starter' ? 'الذكاء الأساسي' : (plan.name === 'professional' ? 'الإدراك الاحترافي' : 'العصب المؤسسي')) : plan.displayName);
+                    setSelectedPlanName(plan.displayName);
                     setShowSubModal(true);
                   }}
                   style={{

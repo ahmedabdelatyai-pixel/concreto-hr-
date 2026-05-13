@@ -26,6 +26,10 @@ const subscriptionRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  region: {
+    type: String,
+    default: 'egypt'
+  },
   status: {
     type: String,
     enum: ['pending', 'contacted', 'converted'],

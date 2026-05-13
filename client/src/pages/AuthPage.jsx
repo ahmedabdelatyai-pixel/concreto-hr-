@@ -18,7 +18,8 @@ const AuthPage = () => {
     password: '',
     confirmPassword: '',
     companyName: '',
-    fullName: ''
+    fullName: '',
+    region: 'egypt'
   });
 
   const handleChange = (e) => {
@@ -81,7 +82,8 @@ const AuthPage = () => {
                   password: '',
                   confirmPassword: '',
                   companyName: '',
-                  fullName: ''
+                  fullName: '',
+                  region: 'egypt'
                 });
               }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
@@ -103,7 +105,8 @@ const AuthPage = () => {
                   password: '',
                   confirmPassword: '',
                   companyName: '',
-                  fullName: ''
+                  fullName: '',
+                  region: 'egypt'
                 });
               }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
@@ -208,6 +211,25 @@ const AuthPage = () => {
               </div>
             )}
 
+            {/* Region Selector (Register only) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  المنطقة الجغرافية | Market Region
+                </label>
+                <select
+                  name="region"
+                  value={formData.region}
+                  onChange={handleChange}
+                  disabled={loading}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition disabled:bg-gray-50 bg-white"
+                >
+                  <option value="egypt">🇪🇬 جمهورية مصر العربية | Egypt</option>
+                  <option value="saudi">🇸🇦 المملكة العربية السعودية | Saudi Arabia</option>
+                </select>
+              </div>
+            )}
+
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -273,7 +295,8 @@ const AuthPage = () => {
                   confirmPassword: '',
                   email: '',
                   companyName: '',
-                  fullName: ''
+                  fullName: '',
+                  region: 'egypt'
                 });
                 setIsLogin(true);
               }}

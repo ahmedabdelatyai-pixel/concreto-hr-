@@ -247,7 +247,7 @@ router.get('/plans', async (req, res) => {
 // POST Subscription Request
 router.post('/subscription-request', async (req, res) => {
   try {
-    const { clientName, companyName, email, phone, planRequested } = req.body;
+    const { clientName, companyName, email, phone, planRequested, region } = req.body;
     
     if (!clientName || !companyName || !email || !phone || !planRequested) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -255,7 +255,7 @@ router.post('/subscription-request', async (req, res) => {
 
     const SubscriptionRequest = require('../models/SubscriptionRequest');
     const newReq = new SubscriptionRequest({
-      clientName, companyName, email, phone, planRequested
+      clientName, companyName, email, phone, planRequested, region: region || 'egypt'
     });
     
     await newReq.save();

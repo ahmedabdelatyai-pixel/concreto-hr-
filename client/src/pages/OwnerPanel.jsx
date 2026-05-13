@@ -16,19 +16,37 @@ const AVAILABLE_FEATURES = [
   { key: 'account_manager', ar: 'مدير حساب مخصص', en: 'Dedicated Account Manager' }
 ];
 
-function PlanEditForm({ plan, onSave, onCancel, isAr }) {
+function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
   const [form, setForm] = useState({
     displayName: plan.displayName,
     description: plan.description,
     jobLimit: plan.jobLimit,
     cvLimit: plan.cvLimit,
     price: plan.price,
-    features: plan.features || []
+    features: plan.features || [],
+    region: plan.region || 'egypt'
   });
 
   return (
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+        {ownerRole === 'main_owner' && (
+          <div className="form-group">
+            <label className="form-label" style={{ fontSize: '0.8rem', color: '#10b981' }}>
+              {isAr ? '🌍 المنطقة الجغرافية المستهدفة' : '🌍 Targeted Geographic Region'}
+            </label>
+            <select
+              className="form-control"
+              value={form.region}
+              onChange={e => setForm({ ...form, region: e.target.value })}
+              style={{ padding: '0.5rem', width: '100%', backgroundColor: '#050a14' }}
+            >
+              <option value="egypt">🇪🇬 مصر (Egypt)</option>
+              <option value="saudi">🇸🇦 السعودية (Saudi Arabia)</option>
+              <option value="both">🌐 الجميع (Global / Both)</option>
+            </select>
+          </div>
+        )}
         <div className="form-group">
           <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
             {isAr ? 'حد الوظائف (9999 = غير محدود)' : 'Job Limit (9999 = unlimited)'}
@@ -163,6 +181,18 @@ function OwnerPanel() {
   const [editingPlan, setEditingPlan] = useState(null);
   const [planSuccess, setPlanSuccess] = useState('');
   const [planError, setPlanError] = useState('');
+  const [planRegionFilter, setPlanRegionFilter] = useState('all');
+  const [showCreatePlanForm, setShowCreatePlanForm] = useState(false);
+  const [newPlanForm, setNewPlanForm] = useState({
+    name: '',
+    displayName: '',
+    description: '',
+    price: 49,
+    jobLimit: 10,
+    cvLimit: 100,
+    region: 'egypt',
+    features: ['basic_dashboard', 'ai_evaluation']
+  });
 
   // Footer Settings State
   const [footerLinks, setFooterLinks] = useState({ email: '', website: '', linkedin: '', facebook: '', x: '' });
@@ -400,6 +430,24 @@ function OwnerPanel() {
       setPlanSuccess(isAr ? `🗑️ تم حذف باقة "${displayName || planName}" بنجاح!` : `🗑️ Plan "${displayName || planName}" deleted successfully!`);
       // Update local state instantly so it disappears from the frontend immediately
       setPlans(prev => prev.filter(p => p.name !== planName));
+      setTimeout(() => setPlanSuccess(''), 4000);
+    } catch (err) {
+      setPlanError(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleCreatePlan = async (e) => {
+    e.preventDefault();
+    setPlanError('');
+    setPlanSuccess('');
+    try {
+      const res = await api.post('/owner/plans', newPlanForm, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setPlanSuccess(isAr ? '✨ تم إنشاء الباقة الجديدة بنجاح!' : '✨ New plan created successfully!');
+      setPlans(prev => [...prev, res.data.plan]);
+      setNewPlanForm({
+        name: '', displayName: '', description: '', price: 49, jobLimit: 10, cvLimit: 100, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation']
+      });
+      setShowCreatePlanForm(false);
       setTimeout(() => setPlanSuccess(''), 4000);
     } catch (err) {
       setPlanError(err.response?.data?.message || err.message);
@@ -898,9 +946,9 @@ function OwnerPanel() {
                       onChange={(e) => setNewCompany({ ...newCompany, subscription: e.target.value })}
                       style={{ padding: '0.8rem' }}
                     >
-                      {plans.length > 0 ? plans.map(p => (
+                      {plans.length > 0 ? plans.filter(p => ownerRole !== 'ksa_branch' || p.region === 'saudi' || p.region === 'both').map(p => (
                         <option key={p.name} value={p.name}>
-                          {p.displayName} — {p.cvLimit >= 9999 ? '∞' : p.cvLimit} {isAr ? 'CV/شهر' : 'CVs/mo'} | {p.jobLimit >= 9999 ? '∞' : p.jobLimit} {isAr ? 'وظيفة' : 'jobs'} | ${p.price}/mo
+                          {p.displayName} ({p.region === 'saudi' ? '🇸🇦' : p.region === 'egypt' ? '🇪🇬' : '🌐'}) — {p.cvLimit >= 9999 ? '∞' : p.cvLimit} {isAr ? 'CV/شهر' : 'CVs/mo'} | {p.jobLimit >= 9999 ? '∞' : p.jobLimit} {isAr ? 'وظيفة' : 'jobs'} | ${p.price}/mo
                         </option>
                       )) : (
                         <>
@@ -1051,6 +1099,77 @@ function OwnerPanel() {
             </table>
           </div>
         </div>
+
+        {/* Company Edit Modal */}
+        {editingCompany && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}>
+            <form onSubmit={handleUpdateCompany} className="card fade-in" style={{ maxWidth: '500px', width: '100%', padding: '2.5rem', border: '1px solid var(--color-primary)' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: 'var(--color-primary)' }}>
+                {isAr ? '✏️ تعديل بيانات الشركة' : '✏️ Edit Company Details'}
+              </h3>
+              
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">{isAr ? 'اسم الشركة' : 'Company Name'}</label>
+                <input
+                  type="text" required className="form-control"
+                  value={editForm.companyName}
+                  onChange={e => setEditForm({...editForm, companyName: e.target.value})}
+                  style={{ padding: '0.6rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">{isAr ? 'البريد الإلكتروني' : 'Email'}</label>
+                <input
+                  type="email" required className="form-control"
+                  value={editForm.email}
+                  onChange={e => setEditForm({...editForm, email: e.target.value})}
+                  style={{ padding: '0.6rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">{isAr ? 'كلمة المرور (اتركه فارغاً لعدم التغيير)' : 'Password (leave blank for no change)'}</label>
+                <input
+                  type="text" className="form-control"
+                  value={editForm.password}
+                  onChange={e => setEditForm({...editForm, password: e.target.value})}
+                  placeholder="••••••••"
+                  style={{ padding: '0.6rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">{isAr ? 'باقة الاشتراك' : 'Subscription Plan'}</label>
+                <select
+                  className="form-control"
+                  value={editForm.subscription}
+                  onChange={e => setEditForm({...editForm, subscription: e.target.value})}
+                  style={{ padding: '0.6rem', backgroundColor: '#050a14' }}
+                >
+                  {plans.filter(p => ownerRole !== 'ksa_branch' || p.region === 'saudi' || p.region === 'both').map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.displayName} ({p.region === 'saudi' ? '🇸🇦' : p.region === 'egypt' ? '🇪🇬' : '🌐'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 2, padding: '0.7rem', fontWeight: 'bold' }}>
+                  💾 {isAr ? 'حفظ التغييرات' : 'Save Changes'}
+                </button>
+                <button type="button" onClick={() => setEditingCompany(null)} className="btn btn-outline" style={{ flex: 1, padding: '0.7rem' }}>
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
         </>)}
 
         {/* ===== BRANDING TAB ===== */}
@@ -1431,11 +1550,166 @@ function OwnerPanel() {
             {planSuccess && <div style={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{planSuccess}</div>}
             {planError && <div style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>⚠️ {planError}</div>}
 
+            {/* Create Plan Toggle Button for Main Owner */}
+            {ownerRole === 'main_owner' && (
+              <div style={{ marginBottom: '1.5rem', textAlign: 'right' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setShowCreatePlanForm(!showCreatePlanForm)}
+                  style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}
+                >
+                  {showCreatePlanForm ? (isAr ? '✕ إغلاق النموذج' : '✕ Close Form') : (isAr ? '✨ إنشاء باقة جديدة' : '✨ Create New Plan')}
+                </button>
+              </div>
+            )}
+
+            {/* Create Plan Collapsible Form */}
+            {showCreatePlanForm && ownerRole === 'main_owner' && (
+              <form onSubmit={handleCreatePlan} className="card fade-in" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid #10b981', background: 'rgba(16,185,129,0.05)' }}>
+                <h4 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#10b981' }}>{isAr ? 'إعداد باقة اشتراك جديدة' : 'Configure New Plan'}</h4>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'المُعرف البرمجي (إنجليزي فقط، مثل: premium)' : 'Unique Name (e.g. premium)'}</label>
+                    <input
+                      type="text" required className="form-control"
+                      value={newPlanForm.name}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                      placeholder="e.g. basic_plus"
+                      style={{ padding: '0.6rem' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'اسم الباقة للعرض' : 'Display Name'}</label>
+                    <input
+                      type="text" required className="form-control"
+                      value={newPlanForm.displayName}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, displayName: e.target.value })}
+                      placeholder={isAr ? 'باقة بلس المتقدمة' : 'Pro Advanced'}
+                      style={{ padding: '0.6rem' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'المنطقة الجغرافية' : 'Geographic Region'}</label>
+                    <select
+                      className="form-control"
+                      value={newPlanForm.region}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, region: e.target.value })}
+                      style={{ padding: '0.6rem', backgroundColor: '#050a14' }}
+                    >
+                      <option value="egypt">🇪🇬 مصر (Egypt)</option>
+                      <option value="saudi">🇸🇦 السعودية (Saudi Arabia)</option>
+                      <option value="both">🌐 الجميع (Global)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'السعر الشهري ($)' : 'Price ($)'}</label>
+                    <input
+                      type="number" min="0" required className="form-control"
+                      value={newPlanForm.price}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, price: Number(e.target.value) })}
+                      style={{ padding: '0.6rem' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'حد الوظائف النشطة' : 'Active Jobs Limit'}</label>
+                    <input
+                      type="number" min="0" required className="form-control"
+                      value={newPlanForm.jobLimit}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, jobLimit: Number(e.target.value) })}
+                      style={{ padding: '0.6rem' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'حد السير الذاتية / شهر' : 'CV Limit / month'}</label>
+                    <input
+                      type="number" min="0" required className="form-control"
+                      value={newPlanForm.cvLimit}
+                      onChange={e => setNewPlanForm({ ...newPlanForm, cvLimit: Number(e.target.value) })}
+                      style={{ padding: '0.6rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>{isAr ? 'وصف تسويقي قصير' : 'Short Description'}</label>
+                  <input
+                    type="text" className="form-control"
+                    value={newPlanForm.description}
+                    onChange={e => setNewPlanForm({ ...newPlanForm, description: e.target.value })}
+                    placeholder={isAr ? 'مثالية للشركات المتوسطة ذات الاحتياجات التنافسية' : 'Ideal for mid-sized competitive companies'}
+                    style={{ padding: '0.6rem' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.85rem', color: '#fca311', marginBottom: '0.5rem' }}>{isAr ? 'المميزات الافتراضية:' : 'Default Features:'}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+                    {AVAILABLE_FEATURES.map(feat => {
+                      const isChecked = newPlanForm.features.includes(feat.key);
+                      return (
+                        <label key={feat.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer', color: isChecked ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const updatedFeats = e.target.checked ? [...newPlanForm.features, feat.key] : newPlanForm.features.filter(k => k !== feat.key);
+                              setNewPlanForm({ ...newPlanForm, features: updatedFeats });
+                            }}
+                            style={{ accentColor: '#10b981' }}
+                          />
+                          {isAr ? feat.ar : feat.en}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.8rem', fontWeight: 'bold' }}>
+                  ➕ {isAr ? 'حفظ وإضافة الباقة للنظام' : 'Save & Publish Plan'}
+                </button>
+              </form>
+            )}
+
+            {/* Region Switcher Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', justifyContent: 'center' }}>
+              {[
+                { key: 'all', label: isAr ? '🌐 كل الباقات' : '🌐 All Plans', show: ownerRole === 'main_owner' },
+                { key: 'egypt', label: isAr ? '🇪🇬 باقات مصر' : '🇪🇬 Egypt Plans', show: ownerRole === 'main_owner' },
+                { key: 'saudi', label: isAr ? '🇸🇦 باقات السعودية' : '🇸🇦 Saudi Plans', show: true }
+              ].filter(t => t.show).map(tab => {
+                const active = (ownerRole === 'ksa_branch' ? 'saudi' : planRegionFilter) === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setPlanRegionFilter(tab.key)}
+                    style={{
+                      padding: '0.5rem 1.5rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: active ? '#10b981' : 'rgba(255,255,255,0.03)',
+                      color: active ? '#fff' : 'rgba(255,255,255,0.5)',
+                      fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
             {plansLoading ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#fca311' }}>{isAr ? 'جاري تحميل الباقات...' : 'Loading plans...'}</div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                {plans.map(plan => (
+                {plans.filter(plan => {
+                  const targetReg = ownerRole === 'ksa_branch' ? 'saudi' : planRegionFilter;
+                  if (targetReg === 'all') return true;
+                  if (targetReg === 'egypt') return !plan.region || plan.region === 'egypt' || plan.region === 'both';
+                  if (targetReg === 'saudi') return plan.region === 'saudi' || plan.region === 'both';
+                  return true;
+                }).map(plan => (
                   <div key={plan.name} className="card" style={{
                     padding: '2rem',
                     border: `1px solid ${plan.name === 'enterprise' ? 'rgba(139,92,246,0.4)' : plan.name === 'professional' ? 'rgba(59,130,246,0.3)' : plan.name === 'starter' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`,
@@ -1461,7 +1735,7 @@ function OwnerPanel() {
                     {/* Limits Display */}
                     {editingPlan === plan.name ? (
                       // EDIT MODE
-                      <PlanEditForm plan={plan} onSave={handleUpdatePlan} onCancel={() => setEditingPlan(null)} isAr={isAr} />
+                      <PlanEditForm plan={plan} onSave={handleUpdatePlan} onCancel={() => setEditingPlan(null)} isAr={isAr} ownerRole={ownerRole} />
                     ) : (
                       // VIEW MODE
                       <div>
@@ -1700,9 +1974,12 @@ function OwnerPanel() {
                           <div style={{ fontSize: '0.85rem' }}>📞 <a href={`https://wa.me/${req.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" style={{ color: '#10b981', textDecoration: 'none' }}>{req.phone}</a></div>
                         </td>
                         <td style={{ padding: '1rem', textAlign: 'center' }}>
-                          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '800', background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}>
+                          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '800', background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', display: 'inline-block', marginBottom: '0.25rem' }}>
                             {req.planRequested}
                           </span>
+                          <div style={{ fontSize: '0.75rem', color: req.region === 'saudi' ? '#10b981' : 'rgba(255,255,255,0.4)', fontWeight: 'bold' }}>
+                            {req.region === 'saudi' ? '🇸🇦 السعودية' : '🇪🇬 مصر'}
+                          </div>
                         </td>
                         <td style={{ padding: '1rem', textAlign: 'center' }}>
                           <select 

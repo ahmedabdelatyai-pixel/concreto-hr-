@@ -85,10 +85,18 @@ npm start
 
 ---
 
-## 📈 Roadmap (Next Steps)
-- [ ] **Multi-Tenancy**: Support for multiple companies on one platform.
-- [ ] **Video Interviews**: Real-time AI analysis of facial expressions.
-- [ ] **Email Automation**: Automated notifications for candidates.
+## 📈 Roadmap & Completed Enhancements
+- [x] **Multi-Tenancy SaaS**: Full isolation supporting multi-company registration, customized tier limits, and API tracking.
+- [x] **Regional SaaS Isolation**: Tier separation between regional markets (Egypt vs. Saudi Arabia) with specialized access permissions.
+- [x] **Owner Management Utility**: Centralized Super-Panel to dynamically create new localized plans, switch markets, and inspect real-time server health.
+- [ ] **Video Interviews**: Real-time AI analysis of candidate verbal and visual engagement metrics.
 
-**Developed by TalentFlow - AI Solutions**
+### 🌐 Adding Custom Regional Plans
+Administrators can easily expand pricing logic to additional geographical markets directly through the **Owner Super-Panel**:
+1. Navigate to the **💳 Plans & Limits** tab inside `/owner-panel`.
+2. Toggle the Region Switcher to view localized offers.
+3. Click **➕ Create New Plan** to specify display nomenclature, maximum active job allowances, monthly resume screening parameters, pricing brackets, and targeted regional context.
+4. Published configurations immediately sync with the primary client registration funnel.
+
+**Developed by TalentFlow - Advanced AI Solutions**
 
