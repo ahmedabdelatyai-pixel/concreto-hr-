@@ -5,17 +5,111 @@ const Job = require('../models/Job');
 const Applicant = require('../models/Applicant');
 
 // Middleware to check for Owner Secret
-const ownerOnly = (req, res, next) => {
+const ownerOnly = async (req, res, next) => {
   const secret = req.headers['x-owner-secret'];
   if (secret === '01553692600A@n') {
-    next();
-  } else {
-    res.status(403).json({ message: 'Forbidden: Owner access only' });
+    req.ownerRole = 'main_owner';
+    return next();
   }
+
+  // Check KSA Branch secret
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
+    const ksaPassword = setting?.value?.password || 'ksa-branch-2026';
+    
+    if (secret === ksaPassword) {
+      req.ownerRole = 'ksa_branch';
+      req.ksaPermissions = setting?.value || {
+        password: 'ksa-branch-2026',
+        canManageCompanies: true,
+        canManagePlans: true,
+        canManageJobs: false,
+        canManageAI: false
+      };
+      return next();
+    }
+  } catch (err) {
+    console.error('KSA Auth Error:', err);
+  }
+
+  res.status(403).json({ message: 'Forbidden: Owner access only' });
 };
+
+// POST /verify-access -> verifies if secret is Main Owner or KSA Branch Manager
+router.post('/verify-access', async (req, res) => {
+  const secret = req.headers['x-owner-secret'] || req.body?.secret;
+  if (secret === '01553692600A@n') {
+    return res.json({ success: true, role: 'main_owner' });
+  }
+
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
+    const ksaPassword = setting?.value?.password || 'ksa-branch-2026';
+    
+    if (secret === ksaPassword) {
+      const ksaPerms = setting?.value || {
+        password: 'ksa-branch-2026',
+        canManageCompanies: true,
+        canManagePlans: true,
+        canManageJobs: false,
+        canManageAI: false
+      };
+      return res.json({ success: true, role: 'ksa_branch', permissions: ksaPerms });
+    }
+  } catch (err) {
+    console.error('KSA verify error:', err);
+  }
+
+  return res.status(403).json({ message: 'كلمة المرور غير صحيحة | Invalid password' });
+});
+
+// GET KSA Branch Settings (Main Owner only)
+router.get('/ksa-settings', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'صلاحية الوصول محصورة بالمالك الأساسي فقط' });
+  }
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
+    const defaultKsa = {
+      password: 'ksa-branch-2026',
+      canManageCompanies: true,
+      canManagePlans: true,
+      canManageJobs: false,
+      canManageAI: false
+    };
+    res.json(setting?.value || defaultKsa);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST Save KSA Branch Settings (Main Owner only)
+router.post('/ksa-settings', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'صلاحية الوصول محصورة بالمالك الأساسي فقط' });
+  }
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const ksaSettings = req.body;
+    await SystemSettings.findOneAndUpdate(
+      { key: 'ksa_branch_settings' },
+      { key: 'ksa_branch_settings', value: ksaSettings, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ message: 'تم حفظ إعدادات وصلاحيات فرع السعودية بنجاح!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // POST — Create a new company (Owner only, bypasses public rate limits)
 router.post('/companies', ownerOnly, async (req, res) => {
+  if (req.ownerRole === 'ksa_branch' && req.ksaPermissions?.canManageCompanies === false) {
+    return res.status(403).json({ message: 'ليس لديك صلاحية لإضافة شركات | Access restricted by Main Owner' });
+  }
   try {
     const { username, email, password, companyName, logo, subscription } = req.body;
     const Company = require('../models/Company');
@@ -115,6 +209,9 @@ router.patch('/companies/:id', ownerOnly, async (req, res) => {
 
 // DELETE a company/admin
 router.delete('/companies/:id', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'حذف الشركات محصور بالمالك الأساسي فقط | Deletion restricted to Main Owner' });
+  }
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -159,6 +256,9 @@ router.get('/ai-settings', ownerOnly, async (req, res) => {
 
 // POST — Save / Update AI Settings
 router.post('/ai-settings', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner' && !req.ksaPermissions?.canManageAI) {
+    return res.status(403).json({ message: 'تعديل إعدادات الذكاء الاصطناعي محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const SystemSettings = require('../models/SystemSettings');
     const { systemPrompt, model, apiKey } = req.body;
@@ -200,6 +300,9 @@ router.get('/branding', async (req, res) => {
 
 // POST — Save Branding Settings (owner-protected)
 router.post('/branding', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'تعديل الهوية محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const SystemSettings = require('../models/SystemSettings');
     const { siteName, siteTagline, primaryColor } = req.body;
@@ -242,6 +345,9 @@ router.get('/footer-links', ownerOnly, async (req, res) => {
 
 // POST — Save / Update Footer Links
 router.post('/footer-links', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'تعديل الروابط محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const SystemSettings = require('../models/SystemSettings');
     const links = req.body;
@@ -278,6 +384,9 @@ router.get('/user-manual', ownerOnly, async (req, res) => {
 
 // POST — Save / Update User Manual
 router.post('/user-manual', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'تعديل الدليل محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const SystemSettings = require('../models/SystemSettings');
     const manual = req.body; // expected { text: "..." }
@@ -375,6 +484,9 @@ router.get('/jobs/all', ownerOnly, async (req, res) => {
 
 // PATCH any job by ID (owner bypass)
 router.patch('/jobs/:id', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner' && !req.ksaPermissions?.canManageJobs) {
+    return res.status(403).json({ message: 'تعديل الوظائف محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const Job = require('../models/Job');
     const { title_en, title_ar, department, active, questionCount } = req.body;
@@ -392,6 +504,9 @@ router.patch('/jobs/:id', ownerOnly, async (req, res) => {
 
 // DELETE any job by ID (owner bypass)
 router.delete('/jobs/:id', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner' && !req.ksaPermissions?.canManageJobs) {
+    return res.status(403).json({ message: 'حذف الوظائف محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const Job = require('../models/Job');
     const deleted = await Job.findByIdAndDelete(req.params.id);
@@ -431,6 +546,9 @@ router.get('/plans/public', async (req, res) => {
 
 // PUT — Update a plan's limits and price
 router.put('/plans/:name', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner' && req.ksaPermissions?.canManagePlans === false) {
+    return res.status(403).json({ message: 'تعديل الباقات محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const Plan = require('../models/Plan');
     const { jobLimit, cvLimit, price, displayName, description, active, features } = req.body;
@@ -460,6 +578,9 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
 
 // POST — Create a new custom plan
 router.post('/plans', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'إنشاء باقات جديدة محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const Plan = require('../models/Plan');
     const { name, displayName, jobLimit, cvLimit, price, description } = req.body;
@@ -490,6 +611,9 @@ router.post('/plans', ownerOnly, async (req, res) => {
 
 // DELETE — Remove a plan
 router.delete('/plans/:name', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'حذف الباقات محصور بالمالك الأساسي | Restricted to Main Owner' });
+  }
   try {
     const Plan = require('../models/Plan');
     const name = req.params.name.toLowerCase();

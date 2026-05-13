@@ -195,8 +195,22 @@ function OwnerPanel() {
     subscription: 'starter'
   });
 
-  // Owner password
-  const OWNER_PASSWORD = '01553692600A@n';
+  // KSA Branch Management States
+  const [ownerRole, setOwnerRole] = useState('main_owner');
+  const [ksaPermissions, setKsaPermissions] = useState({
+    password: 'ksa-branch-2026',
+    canManageCompanies: true,
+    canManagePlans: true,
+    canManageJobs: false,
+    canManageAI: false
+  });
+  const [ksaLoading, setKsaLoading] = useState(false);
+  const [ksaSuccess, setKsaSuccess] = useState('');
+  const [ksaError, setKsaError] = useState('');
+
+  // Owner password dynamic tracker
+  const [activeOwnerSecret, setActiveOwnerSecret] = useState('01553692600A@n');
+  const OWNER_PASSWORD = activeOwnerSecret;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -207,8 +221,38 @@ function OwnerPanel() {
       fetchUserManual();
       fetchSubRequests();
       fetchBranding();
+      if (ownerRole === 'main_owner') {
+        fetchKsaSettings();
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, ownerRole]);
+
+  const fetchKsaSettings = async () => {
+    try {
+      const res = await api.get('/owner/ksa-settings', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      if (res.data) {
+        setKsaPermissions(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch KSA settings', err);
+    }
+  };
+
+  const handleSaveKsaSettings = async (e) => {
+    e.preventDefault();
+    setKsaLoading(true);
+    setKsaSuccess('');
+    setKsaError('');
+    try {
+      await api.post('/owner/ksa-settings', ksaPermissions, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setKsaSuccess(isAr ? '✅ تم حفظ إعدادات وصلاحيات فرع السعودية بنجاح!' : '✅ KSA Branch settings saved successfully!');
+      setTimeout(() => setKsaSuccess(''), 4000);
+    } catch (err) {
+      setKsaError(err.response?.data?.message || err.message);
+    } finally {
+      setKsaLoading(false);
+    }
+  };
 
   const fetchBranding = async () => {
     try {
@@ -416,14 +460,23 @@ function OwnerPanel() {
     }
   };
 
-  const handleOwnerLogin = (e) => {
+  const handleOwnerLogin = async (e) => {
     e.preventDefault();
-    if (ownerPassword === OWNER_PASSWORD) {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.post('/owner/verify-access', { secret: ownerPassword });
+      setActiveOwnerSecret(ownerPassword);
+      setOwnerRole(res.data.role); // 'main_owner' or 'ksa_branch'
+      if (res.data.permissions) {
+        setKsaPermissions(res.data.permissions);
+      }
       setIsAuthenticated(true);
       setOwnerPassword('');
-      setError('');
-    } else {
-      setError(isAr ? 'كلمة المرور خاطئة' : 'Invalid password');
+    } catch (err) {
+      setError(isAr ? 'كلمة المرور غير صحيحة أو غير مصرح لك بالدخول' : 'Invalid password or unauthorized access');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -682,18 +735,47 @@ function OwnerPanel() {
           </button>
         </div>
 
+        {/* Role Banner Indicator */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: ownerRole === 'main_owner' ? 'rgba(16,185,129,0.05)' : 'rgba(59,130,246,0.05)',
+          border: `1px solid ${ownerRole === 'main_owner' ? 'rgba(16,185,129:0.2)' : 'rgba(59,130,246:0.2)'}`,
+          borderRadius: '12px',
+          padding: '1rem 1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>{ownerRole === 'main_owner' ? '👑' : '🇸🇦'}</span>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'صلاحية الدخول الحالية' : 'Active Authentication Level'}</div>
+              <div style={{ fontWeight: '700', color: ownerRole === 'main_owner' ? '#10b981' : '#3b82f6', fontSize: '1rem' }}>
+                {ownerRole === 'main_owner' ? (isAr ? 'المالك الأساسي (صلاحيات مطلقة)' : 'Main Owner (Full Access)') : (isAr ? 'إدارة فرع السعودية (صلاحيات مخصصة)' : 'KSA Branch Manager (Custom Permissions)')}
+              </div>
+            </div>
+          </div>
+
+          {ownerRole === 'ksa_branch' && (
+            <span style={{ fontSize: '0.8rem', backgroundColor: 'rgba(59,130,246,0.15)', color: '#93c5fd', padding: '4px 12px', borderRadius: '20px', fontWeight: '600' }}>
+              {isAr ? 'حساب فرعي محدود' : 'Restricted Sub-Account'}
+            </span>
+          )}
+        </div>
+
         {/* Tab Navigation */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem', flexWrap: 'wrap' }}>
           {[
-            { key: 'companies', label: isAr ? '🏢 إدارة الشركات' : '🏢 Companies', color: '#10b981' },
-            { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444' },
-            { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311' },
-            { key: 'requests', label: isAr ? '📩 طلبات الاشتراك' : '📩 Requests', color: '#3b82f6' },
-            { key: 'branding', label: isAr ? '🎨 الهوية والبراند' : '🎨 Branding', color: '#ec4899' },
-            { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6' },
-            { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4' },
-            { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e' },
-          ].map(tab => (
+            { key: 'companies', label: isAr ? '🏢 إدارة الشركات' : '🏢 Companies', color: '#10b981', show: ownerRole === 'main_owner' || ksaPermissions?.canManageCompanies !== false },
+            { key: 'jobs', label: isAr ? '📋 كل الوظائف' : '📋 All Jobs', color: '#ef4444', show: ownerRole === 'main_owner' || ksaPermissions?.canManageJobs },
+            { key: 'plans', label: isAr ? '💳 الباقات' : '💳 Plans & Limits', color: '#fca311', show: ownerRole === 'main_owner' || ksaPermissions?.canManagePlans !== false },
+            { key: 'requests', label: isAr ? '📩 طلبات الاشتراك' : '📩 Requests', color: '#3b82f6', show: ownerRole === 'main_owner' },
+            { key: 'branding', label: isAr ? '🎨 الهوية والبراند' : '🎨 Branding', color: '#ec4899', show: ownerRole === 'main_owner' },
+            { key: 'ai', label: isAr ? '🧠 إعدادات عقل النظام' : '🧠 AI Brain Settings', color: '#8b5cf6', show: ownerRole === 'main_owner' || ksaPermissions?.canManageAI },
+            { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4', show: ownerRole === 'main_owner' },
+            { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e', show: ownerRole === 'main_owner' },
+            { key: 'ksa', label: isAr ? '🇸🇦 إدارة فرع السعودية' : '🇸🇦 KSA Branch Control', color: '#10b981', show: ownerRole === 'main_owner' },
+          ].filter(tab => tab.show).map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -949,15 +1031,17 @@ function OwnerPanel() {
                           >
                             {isAr ? 'تعديل' : 'Edit'}
                           </button>
-                          <button 
-                            onClick={() => handleDeleteCompany(companyAdmin._id)}
-                            style={{ 
-                              background: 'none', border: 'none', color: '#ef4444', 
-                              cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600'
-                            }}
-                          >
-                            {isAr ? 'حذف' : 'Delete'}
-                          </button>
+                          {ownerRole === 'main_owner' && (
+                            <button 
+                              onClick={() => handleDeleteCompany(companyAdmin._id)}
+                              style={{ 
+                                background: 'none', border: 'none', color: '#ef4444', 
+                                cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600'
+                              }}
+                            >
+                              {isAr ? 'حذف' : 'Delete'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1653,6 +1737,110 @@ function OwnerPanel() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ===== KSA BRANCH TAB ===== */}
+        {activeTab === 'ksa' && (
+          <div className="fade-in">
+            <div className="card card-glow" style={{ padding: '3rem', borderTop: '4px solid #10b981' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                <span style={{ fontSize: '2.5rem' }}>🇸🇦</span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800' }}>
+                    {isAr ? 'إدارة وصلاحيات فرع السعودية' : 'KSA Branch Management & Permissions'}
+                  </h2>
+                  <p className="text-muted" style={{ margin: 0 }}>
+                    {isAr ? 'تخصيص كلمة المرور الصلاحيات الممنوحة لمدير فرع السعودية بشكل دقيق' : 'Configure secret password and granular permissions granted to the KSA Branch Manager'}
+                  </p>
+                </div>
+              </div>
+
+              {ksaSuccess && <div style={{ padding: '1rem', backgroundColor: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '8px', marginBottom: '1.5rem', fontWeight: 'bold' }}>{ksaSuccess}</div>}
+              {ksaError && <div style={{ padding: '1rem', backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', marginBottom: '1.5rem', fontWeight: 'bold' }}>{ksaError}</div>}
+
+              <form onSubmit={handleSaveKsaSettings}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '🔑 كلمة مرور مدير فرع السعودية' : '🔑 KSA Branch Manager Password'}</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={ksaPermissions.password || ''}
+                      onChange={e => setKsaPermissions({ ...ksaPermissions, password: e.target.value })}
+                      placeholder="ksa-branch-2026"
+                      required
+                      style={{ padding: '0.8rem' }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.25rem', display: 'block' }}>
+                      {isAr ? 'يستخدمها مدير الفرع للدخول إلى لوحة التحكم المخصصة له' : 'Used by the branch manager to log into their customized portal'}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                  {isAr ? '🛡️ الصلاحيات الممنوحة' : '🛡️ Granular Permissions'}
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <input
+                      type="checkbox"
+                      checked={ksaPermissions.canManageCompanies !== false}
+                      onChange={e => setKsaPermissions({ ...ksaPermissions, canManageCompanies: e.target.checked })}
+                      style={{ width: '20px', height: '20px', accentColor: '#10b981' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>{isAr ? 'إضافة وإدارة الشركات' : 'Add & Manage Companies'}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'إضافة شركات ومستخدمين جدد' : 'Add companies and users'}</div>
+                    </div>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <input
+                      type="checkbox"
+                      checked={ksaPermissions.canManagePlans !== false}
+                      onChange={e => setKsaPermissions({ ...ksaPermissions, canManagePlans: e.target.checked })}
+                      style={{ width: '20px', height: '20px', accentColor: '#10b981' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>{isAr ? 'تعديل الباقات والحدود' : 'Edit Plans & Limits'}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'تعديل أسعار وحدود الباقات' : 'Modify plan limits and prices'}</div>
+                    </div>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!ksaPermissions.canManageJobs}
+                      onChange={e => setKsaPermissions({ ...ksaPermissions, canManageJobs: e.target.checked })}
+                      style={{ width: '20px', height: '20px', accentColor: '#10b981' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>{isAr ? 'تعديل وحذف الوظائف' : 'Edit & Delete Jobs'}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'صلاحية التعديل على وظائف العملاء' : 'Modify client posted jobs'}</div>
+                    </div>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!ksaPermissions.canManageAI}
+                      onChange={e => setKsaPermissions({ ...ksaPermissions, canManageAI: e.target.checked })}
+                      style={{ width: '20px', height: '20px', accentColor: '#10b981' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>{isAr ? 'إعدادات عقل النظام الذكي' : 'AI Brain Control'}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>{isAr ? 'تغيير البرومبت ونماذج الـ API' : 'Change AI prompts and API keys'}</div>
+                    </div>
+                  </label>
+                </div>
+
+                <button type="submit" className="btn btn-primary" disabled={ksaLoading} style={{ padding: '0.8rem 2rem', fontSize: '1rem', fontWeight: 'bold' }}>
+                  {ksaLoading ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ الصلاحيات' : 'Save Permissions')}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
