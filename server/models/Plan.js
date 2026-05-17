@@ -55,6 +55,12 @@ const planSchema = new mongoose.Schema({
     default: true
   },
 
+  // هل يتم إخفاء السعر وعرض "تواصل معنا" بدلاً منه
+  hidePrice: {
+    type: Boolean,
+    default: false
+  },
+
   // ترتيب العرض
   order: {
     type: Number,

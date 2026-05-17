@@ -559,7 +559,7 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
       return res.status(403).json({ message: 'صلاحيتك محصورة بتعديل باقات فرع السعودية فقط | Restricted to Saudi plans' });
     }
 
-    const { jobLimit, cvLimit, price, displayName, description, active, features, region } = req.body;
+    const { jobLimit, cvLimit, price, displayName, description, active, features, region, hidePrice } = req.body;
 
     const updates = { updatedAt: new Date() };
     if (jobLimit !== undefined) updates.jobLimit = Number(jobLimit);
@@ -568,6 +568,7 @@ router.put('/plans/:name', ownerOnly, async (req, res) => {
     if (displayName) updates.displayName = displayName;
     if (description !== undefined) updates.description = description;
     if (active !== undefined) updates.active = active;
+    if (hidePrice !== undefined) updates.hidePrice = hidePrice;
     if (features !== undefined) updates.features = features;
     if (region !== undefined && req.ownerRole === 'main_owner') updates.region = region;
 
@@ -590,7 +591,7 @@ router.post('/plans', ownerOnly, async (req, res) => {
   }
   try {
     const Plan = require('../models/Plan');
-    const { name, displayName, jobLimit, cvLimit, price, description, region, features, active } = req.body;
+    const { name, displayName, jobLimit, cvLimit, price, description, region, features, active, hidePrice } = req.body;
 
     if (!name || !displayName) {
       return res.status(400).json({ message: 'name and displayName are required.' });
@@ -609,6 +610,7 @@ router.post('/plans', ownerOnly, async (req, res) => {
       region: region || 'egypt',
       features: features || ['basic_dashboard'],
       active: active !== undefined ? active : true,
+      hidePrice: hidePrice !== undefined ? hidePrice : false,
       order: 99
     });
 

@@ -339,10 +339,18 @@ function LandingPage() {
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', textAlign: 'center', minHeight: '50px', marginBottom: '2rem' }}>
                   {isArabic ? descAr : descEn}
                 </p>
-                <div style={{ fontSize: '3.5rem', fontWeight: '900', textAlign: 'center', marginBottom: '2rem' }}>
-                  <span style={{ fontSize: '1.5rem', verticalAlign: 'super', color: 'rgba(255,255,255,0.6)' }}>$</span>{plan.price}
-                  <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>/{isArabic ? 'شهر' : 'mo'}</span>
-                </div>
+                {plan.hidePrice ? (
+                  <div style={{ minHeight: '84px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
+                    <span style={{ fontSize: '2.2rem', fontWeight: '800', color: color, letterSpacing: '0.5px' }}>
+                      {isArabic ? 'تواصل معنا' : 'Contact Us'}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '3.5rem', fontWeight: '900', textAlign: 'center', marginBottom: '2rem' }}>
+                    <span style={{ fontSize: '1.5rem', verticalAlign: 'super', color: 'rgba(255,255,255,0.6)' }}>$</span>{plan.price}
+                    <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: '500' }}>/{isArabic ? 'شهر' : 'mo'}</span>
+                  </div>
+                )}
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 3rem 0', flex: 1 }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', fontSize: '1rem' }}>
                     <span style={{ color: color }}>✓</span> {plan.jobLimit >= 9999 ? (isArabic ? 'وظائف غير محدودة' : 'Unlimited Jobs') : `${plan.jobLimit} ${isArabic ? 'وظائف نشطة' : 'Active Jobs'}`}
@@ -373,7 +381,9 @@ function LandingPage() {
                     padding: '1rem', width: '100%', fontSize: '1.1rem', fontWeight: '700', borderRadius: '8px'
                   }}
                 >
-                  {isArabic ? 'ابدأ الآن' : 'Get Started'}
+                  {plan.hidePrice 
+                    ? (isArabic ? 'تواصل معنا' : 'Contact Us') 
+                    : (isArabic ? 'ابدأ الآن' : 'Get Started')}
                 </button>
               </div>
             );

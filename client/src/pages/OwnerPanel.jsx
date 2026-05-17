@@ -25,7 +25,8 @@ function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
     price: plan.price,
     features: plan.features || [],
     region: plan.region || 'egypt',
-    active: plan.active !== false
+    active: plan.active !== false,
+    hidePrice: plan.hidePrice === true
   });
 
   return (
@@ -50,7 +51,7 @@ function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
         )}
         
         {/* Toggle Plan Visibility */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0.4rem 0', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0.2rem 0', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
           <input
             type="checkbox"
             id={`active-toggle-${plan.name}`}
@@ -62,6 +63,22 @@ function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
             {isAr 
               ? (form.active ? '🟢 نشطة (تظهر بالفرونت)' : '🔴 موقوفة (مخفية بالفرونت)')
               : (form.active ? '🟢 Active (Visible)' : '🔴 Paused (Hidden)')}
+          </label>
+        </div>
+
+        {/* Toggle Hide Price */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0.2rem 0', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <input
+            type="checkbox"
+            id={`hideprice-toggle-${plan.name}`}
+            checked={form.hidePrice}
+            onChange={e => setForm({ ...form, hidePrice: e.target.checked })}
+            style={{ accentColor: '#3b82f6', width: '16px', height: '16px', cursor: 'pointer' }}
+          />
+          <label htmlFor={`hideprice-toggle-${plan.name}`} style={{ fontSize: '0.82rem', fontWeight: '700', color: form.hidePrice ? '#3b82f6' : 'rgba(255,255,255,0.6)', cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center' }}>
+            {isAr 
+              ? (form.hidePrice ? '🔵 السعر مخفي (عرض "تواصل معنا")' : '⚪ السعر ظاهر بالفرونت')
+              : (form.hidePrice ? '🔵 Price Hidden ("Contact Us")' : '⚪ Price Visible')}
           </label>
         </div>
 
@@ -210,7 +227,8 @@ function OwnerPanel() {
     cvLimit: 100,
     region: 'egypt',
     features: ['basic_dashboard', 'ai_evaluation'],
-    active: true
+    active: true,
+    hidePrice: false
   });
 
   // Footer Settings State
@@ -464,7 +482,7 @@ function OwnerPanel() {
       setPlanSuccess(isAr ? '✨ تم إنشاء الباقة الجديدة بنجاح!' : '✨ New plan created successfully!');
       setPlans(prev => [...prev, res.data.plan]);
       setNewPlanForm({
-        name: '', displayName: '', description: '', price: 49, jobLimit: 10, cvLimit: 100, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation'], active: true
+        name: '', displayName: '', description: '', price: 49, jobLimit: 10, cvLimit: 100, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation'], active: true, hidePrice: false
       });
       setShowCreatePlanForm(false);
       setTimeout(() => setPlanSuccess(''), 4000);
@@ -1688,7 +1706,7 @@ function OwnerPanel() {
                 </div>
 
                 {/* Toggle Plan Visibility during creation */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem', marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.75rem', marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <input
                     type="checkbox"
                     id="new-plan-active"
@@ -1700,6 +1718,22 @@ function OwnerPanel() {
                     {isAr
                       ? (newPlanForm.active ? '🟢 تفعيل ونشر فوري (تظهر للعملاء في الفرونت)' : '🔴 حفظ كمسودة موقوفة (مخفية من الفرونت)')
                       : (newPlanForm.active ? '🟢 Publish Immediately (Visible on Frontend)' : '🔴 Save as Paused Draft (Hidden on Frontend)')}
+                  </label>
+                </div>
+
+                {/* Toggle Hide Price during creation */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <input
+                    type="checkbox"
+                    id="new-plan-hideprice"
+                    checked={newPlanForm.hidePrice}
+                    onChange={e => setNewPlanForm({ ...newPlanForm, hidePrice: e.target.checked })}
+                    style={{ accentColor: '#3b82f6', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="new-plan-hideprice" style={{ fontSize: '0.85rem', fontWeight: '700', color: newPlanForm.hidePrice ? '#3b82f6' : 'rgba(255,255,255,0.6)', cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center' }}>
+                    {isAr
+                      ? (newPlanForm.hidePrice ? '🔵 إخفاء السعر بالفرونت (عرض "تواصل معنا")' : '⚪ إظهار السعر بالفرونت كالمعتاد')
+                      : (newPlanForm.hidePrice ? '🔵 Hide Price in Frontend (Show "Contact Us")' : '⚪ Show Price as Normal')}
                   </label>
                 </div>
 
@@ -1757,6 +1791,11 @@ function OwnerPanel() {
                         <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#fca311', marginTop: '0.25rem' }}>
                           ${plan.price}<span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontWeight: '400' }}>/mo</span>
                         </div>
+                        {plan.hidePrice && (
+                          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#3b82f6', marginTop: '0.25rem' }}>
+                            🔵 {isAr ? 'السعر مخفي (تواصل معنا)' : 'Price Hidden (Contact Us)'}
+                          </div>
+                        )}
                       </div>
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '700',
