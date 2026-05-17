@@ -590,7 +590,7 @@ router.post('/plans', ownerOnly, async (req, res) => {
   }
   try {
     const Plan = require('../models/Plan');
-    const { name, displayName, jobLimit, cvLimit, price, description, region, features } = req.body;
+    const { name, displayName, jobLimit, cvLimit, price, description, region, features, active } = req.body;
 
     if (!name || !displayName) {
       return res.status(400).json({ message: 'name and displayName are required.' });
@@ -608,6 +608,7 @@ router.post('/plans', ownerOnly, async (req, res) => {
       description: description || '',
       region: region || 'egypt',
       features: features || ['basic_dashboard'],
+      active: active !== undefined ? active : true,
       order: 99
     });
 

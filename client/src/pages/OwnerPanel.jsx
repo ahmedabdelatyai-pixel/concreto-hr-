@@ -24,7 +24,8 @@ function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
     cvLimit: plan.cvLimit,
     price: plan.price,
     features: plan.features || [],
-    region: plan.region || 'egypt'
+    region: plan.region || 'egypt',
+    active: plan.active !== false
   });
 
   return (
@@ -47,6 +48,23 @@ function PlanEditForm({ plan, onSave, onCancel, isAr, ownerRole }) {
             </select>
           </div>
         )}
+        
+        {/* Toggle Plan Visibility */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0.4rem 0', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <input
+            type="checkbox"
+            id={`active-toggle-${plan.name}`}
+            checked={form.active}
+            onChange={e => setForm({ ...form, active: e.target.checked })}
+            style={{ accentColor: '#10b981', width: '16px', height: '16px', cursor: 'pointer' }}
+          />
+          <label htmlFor={`active-toggle-${plan.name}`} style={{ fontSize: '0.82rem', fontWeight: '700', color: form.active ? '#10b981' : '#ef4444', cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center' }}>
+            {isAr 
+              ? (form.active ? '🟢 نشطة (تظهر بالفرونت)' : '🔴 موقوفة (مخفية بالفرونت)')
+              : (form.active ? '🟢 Active (Visible)' : '🔴 Paused (Hidden)')}
+          </label>
+        </div>
+
         <div className="form-group">
           <label className="form-label" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
             {isAr ? 'حد الوظائف (9999 = غير محدود)' : 'Job Limit (9999 = unlimited)'}
@@ -191,7 +209,8 @@ function OwnerPanel() {
     jobLimit: 10,
     cvLimit: 100,
     region: 'egypt',
-    features: ['basic_dashboard', 'ai_evaluation']
+    features: ['basic_dashboard', 'ai_evaluation'],
+    active: true
   });
 
   // Footer Settings State
@@ -445,7 +464,7 @@ function OwnerPanel() {
       setPlanSuccess(isAr ? '✨ تم إنشاء الباقة الجديدة بنجاح!' : '✨ New plan created successfully!');
       setPlans(prev => [...prev, res.data.plan]);
       setNewPlanForm({
-        name: '', displayName: '', description: '', price: 49, jobLimit: 10, cvLimit: 100, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation']
+        name: '', displayName: '', description: '', price: 49, jobLimit: 10, cvLimit: 100, region: 'egypt', features: ['basic_dashboard', 'ai_evaluation'], active: true
       });
       setShowCreatePlanForm(false);
       setTimeout(() => setPlanSuccess(''), 4000);
@@ -1666,6 +1685,22 @@ function OwnerPanel() {
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Toggle Plan Visibility during creation */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem', marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <input
+                    type="checkbox"
+                    id="new-plan-active"
+                    checked={newPlanForm.active}
+                    onChange={e => setNewPlanForm({ ...newPlanForm, active: e.target.checked })}
+                    style={{ accentColor: '#10b981', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="new-plan-active" style={{ fontSize: '0.85rem', fontWeight: '700', color: newPlanForm.active ? '#10b981' : '#ef4444', cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center' }}>
+                    {isAr
+                      ? (newPlanForm.active ? '🟢 تفعيل ونشر فوري (تظهر للعملاء في الفرونت)' : '🔴 حفظ كمسودة موقوفة (مخفية من الفرونت)')
+                      : (newPlanForm.active ? '🟢 Publish Immediately (Visible on Frontend)' : '🔴 Save as Paused Draft (Hidden on Frontend)')}
+                  </label>
                 </div>
 
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.8rem', fontWeight: 'bold' }}>
