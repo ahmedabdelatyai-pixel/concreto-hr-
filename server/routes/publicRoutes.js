@@ -237,7 +237,7 @@ router.get('/user-manual', async (req, res) => {
 router.get('/plans', async (req, res) => {
   try {
     const Plan = require('../models/Plan');
-    const plans = await Plan.find({ active: true }).sort({ price: 1 });
+    const plans = await Plan.find({ active: { $ne: false } }).sort({ price: 1 });
     res.json(plans);
   } catch (err) {
     res.status(500).json({ message: err.message });

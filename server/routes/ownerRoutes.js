@@ -536,7 +536,7 @@ router.get('/plans', ownerOnly, async (req, res) => {
 router.get('/plans/public', async (req, res) => {
   try {
     const Plan = require('../models/Plan');
-    const plans = await Plan.find({ active: true }).sort({ order: 1 })
+    const plans = await Plan.find({ active: { $ne: false } }).sort({ order: 1 })
       .select('name displayName jobLimit cvLimit price description order region features');
     res.json(plans);
   } catch (err) {
