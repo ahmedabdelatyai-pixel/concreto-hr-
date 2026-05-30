@@ -6,11 +6,16 @@ export default function InstallAppButton() {
   const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
 
-  if (!isInstallable || isInstalled) return null;
+  // We will always show the button for testing purposes.
+  // If not installable, we can show an alert instead.
+  // if (!isInstallable || isInstalled) return null;
 
   return (
     <button 
-      onClick={installApp} 
+      onClick={() => {
+        if (isInstallable) installApp();
+        else alert(isAr ? 'التطبيق مثبت بالفعل أو متصفحك لا يدعم هذه الميزة حالياً.' : 'App is already installed or your browser does not support this feature.');
+      }} 
       className="btn btn-primary"
       style={{
         background: 'linear-gradient(135deg, #10b981, #059669)',
