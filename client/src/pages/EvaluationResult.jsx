@@ -22,6 +22,8 @@ function EvaluationResult() {
   const correctAnswers = useInterviewStore(state => state.correctAnswers);
   const cheatAttempts = useInterviewStore(state => state.cheatAttempts);
   const isDemoMode = useInterviewStore(state => state.isDemoMode);
+  const cvData = useInterviewStore(state => state.cvData);
+  const cvFile = useInterviewStore(state => state.cvFile);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
@@ -30,10 +32,8 @@ function EvaluationResult() {
         const questionCategories = generatedQuestions.map(q =>
           typeof q === 'string' ? 'Technical' : (q.category || 'Technical')
         );
-        const cvData = useInterviewStore.getState().cvData;
-        const jobDescription = useInterviewStore.getState().candidate?.jobDescription || '';
+        const jobDescription = candidate?.jobDescription || '';
 
-        const isDemoMode = useInterviewStore.getState().isDemoMode;
         if (isDemoMode) {
           // Completely mock evaluation offline to save API quotas
           evalResult = {
@@ -69,8 +69,8 @@ function EvaluationResult() {
       if (!savedRef.current && evalResult && candidate.applicantId) {
         savedRef.current = true;
         
-        const isDemoMode = useInterviewStore.getState().isDemoMode;
-        if (isDemoMode) {
+        const isDemoModeStatus = isDemoMode;
+        if (isDemoModeStatus) {
           console.log("Demo Mode: Skipping DB submission.");
           setLoading(false);
           return;
@@ -82,9 +82,9 @@ function EvaluationResult() {
 
           const mappedData = {
             answers: evalResult.answers || answers, // ✅ Use scored answers
-            cvData: useInterviewStore.getState().cvData,
+            cvData: cvData,
 
-            cvFile: useInterviewStore.getState().cvFile,
+            cvFile: cvFile,
             accessSecret: candidate.accessSecret,
             evaluation: {
               ...evalResult,
@@ -125,21 +125,44 @@ function EvaluationResult() {
 
   if (loading) {
     return (
-      <div className="container text-center" style={{ marginTop: '15vh' }}>
-        <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '1.2rem' }}>
-          {t('evaluating') || 'جاري تحليل إجاباتك وإنشاء التقرير النهائي...'}
-        </div>
-        <p className="text-muted" style={{ marginTop: '0.5rem' }}>Using Gemini 2.0 Flash AI</p>
-        <div className="progress-container" style={{ marginTop: '2rem', margin: '0 auto', width: '60%' }}>
-          <div className="progress-bar" style={{ width: '100%', animation: 'shimmer 2s infinite linear' }}></div>
+      <div className="container" style={{ marginTop: '5vh' }}>
+        <div className="card glass-panel" style={{ padding: '3rem' }}>
+          <div className="skeleton skeleton-title" style={{ width: '40%', margin: '0 auto 2rem auto' }}></div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="skeleton skeleton-title" style={{ width: '100%', height: '80px' }}></div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="skeleton skeleton-text" style={{ width: '30%' }}></div>
+              <div className="skeleton skeleton-text" style={{ width: '10%', height: '2rem' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="skeleton skeleton-text" style={{ width: '40%' }}></div>
+              <div className="skeleton skeleton-text" style={{ width: '10%', height: '2rem' }}></div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="skeleton skeleton-text" style={{ width: '25%' }}></div>
+              <div className="skeleton skeleton-text" style={{ width: '10%', height: '2rem' }}></div>
+            </div>
+
+            <div className="skeleton skeleton-title" style={{ width: '100%', height: '200px', marginTop: '1rem' }}></div>
+          </div>
+          
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <div className="animate-pulse" style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
+              {t('evaluating') || 'جاري تحليل إجاباتك وإنشاء التقرير النهائي...'}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container fade-in" style={{ marginTop: '5vh' }}>
-      <div className="card">
+    <div className="container fade-in animate-slide-up" style={{ marginTop: '5vh' }}>
+      <div className="card glass-panel hover-glow" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>{t('evaluation.title')}</h2>
         
         {/* PREMIUM DEMO UPSELL BANNER */}
@@ -181,7 +204,7 @@ function EvaluationResult() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* CV AI Analysis Section */}
-          {useInterviewStore.getState().cvData && (
+          {cvData && (
             <div style={{ 
               padding: '1.5rem', 
               backgroundColor: 'rgba(59, 130, 246, 0.05)', 
@@ -192,14 +215,14 @@ function EvaluationResult() {
               <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 📄 {i18n.language === 'ar' ? 'تحليل السيرة الذاتية' : 'CV AI Analysis'}
                 <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}>
-                  {useInterviewStore.getState().cvData.technical_match}% Match
+                  {cvData.technical_match}% Match
                 </span>
               </h3>
               <p style={{ fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--color-text)' }}>
-                {useInterviewStore.getState().cvData.summary}
+                {cvData.summary}
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
-                {useInterviewStore.getState().cvData.skills?.slice(0, 5).map((skill, i) => (
+                {cvData.skills?.slice(0, 5).map((skill, i) => (
                   <span key={i} style={{
                     padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.05)',
                     fontSize: '0.75rem', border: '1px solid var(--color-border)'

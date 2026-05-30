@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
+import toast from 'react-hot-toast';
 
 const AVAILABLE_FEATURES = [
   { key: 'ai_evaluation', ar: 'تقييم الذكاء الاصطناعي', en: 'AI Evaluation' },
@@ -21,15 +22,12 @@ function LandingPage() {
   const [searchParams] = useSearchParams();
   const setCandidateInfo = useInterviewStore(state => state.setCandidateInfo);
   const [serverStatus, setServerStatus] = useState('checking');
-  const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   // Subscription Request Modal State
   const [showSubModal, setShowSubModal] = useState(false);
   const [selectedPlanName, setSelectedPlanName] = useState('');
   const [subForm, setSubForm] = useState({ clientName: '', companyName: '', email: '', phone: '' });
   const [subLoading, setSubLoading] = useState(false);
-  const [subSuccess, setSubSuccess] = useState('');
-  const [subError, setSubError] = useState('');
   const [branding, setBranding] = useState({ siteName: 'TalentFlow', siteTagline: 'AI', primaryColor: '#6366f1' });
   const [pricingRegion, setPricingRegion] = useState('egypt'); // 'egypt' or 'saudi'
 
@@ -38,18 +36,17 @@ function LandingPage() {
     setSubLoading(true);
     setSubError('');
     try {
-      await axios.post(`${API_URL}/public/subscription-request`, {
+      await api.post(`/public/subscription-request`, {
         ...subForm,
         planRequested: selectedPlanName
       });
-      setSubSuccess(isArabic ? 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً.' : 'Request submitted successfully! We will contact you soon.');
+      toast.success(isArabic ? 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً.' : 'Request submitted successfully! We will contact you soon.');
       setTimeout(() => {
         setShowSubModal(false);
-        setSubSuccess('');
         setSubForm({ clientName: '', companyName: '', email: '', phone: '' });
-      }, 3000);
+      }, 1000);
     } catch (err) {
-      setSubError(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message || (isArabic ? 'حدث خطأ!' : 'An error occurred!'));
     } finally {
       setSubLoading(false);
     }
@@ -69,7 +66,7 @@ function LandingPage() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        await axios.get(`${API_URL}/public/jobs`, { timeout: 5000 });
+        await api.get(`/public/jobs`, { timeout: 5000 });
         setServerStatus('online');
       } catch (err) {
         setServerStatus('offline');
@@ -79,7 +76,7 @@ function LandingPage() {
 
     const fetchPlans = async () => {
       try {
-        const res = await axios.get(`${API_URL}/public/plans`);
+        const res = await api.get(`/public/plans`);
         if (res.data && res.data.length > 0) {
           setDbPlans(res.data);
         }
@@ -91,24 +88,23 @@ function LandingPage() {
 
     const fetchBranding = async () => {
       try {
-        const res = await axios.get(`${API_URL}/owner/branding`);
+        const res = await api.get(`/owner/branding`);
         if (res.data) setBranding(res.data);
       } catch (err) {
         console.error('Failed to load branding:', err);
       }
     };
     fetchBranding();
-  }, [API_URL]);
+  }, []);
 
   const isArabic = i18n.language === 'ar';
 
   return (
     <div style={{ backgroundColor: '#050a14', color: '#fff', minHeight: '100vh', fontFamily: "'Outfit', sans-serif" }}>
       {/* Navbar */}
-      <nav style={{
+      <nav className="nav-glass" style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '1.5rem 10%', position: 'sticky', top: 0, backgroundColor: 'rgba(5, 10, 20, 0.8)',
-        backdropFilter: 'blur(12px)', zIndex: 1000, borderBottom: '1px solid rgba(255,255,255,0.05)'
+        padding: '1.5rem 10%', position: 'sticky', top: 0, zIndex: 1000
       }}>
         <div style={{ fontSize: '1.8rem', fontWeight: '800', color: branding.primaryColor, letterSpacing: '-1px' }}>
           {branding.siteName}<span style={{ color: '#fff' }}>{branding.siteTagline}</span>
@@ -211,9 +207,9 @@ function LandingPage() {
               icon: '📊'
             }
           ].map((feat, i) => (
-            <div key={i} className="card" style={{ 
+            <div key={i} className="card hover-glow glass-panel" style={{ 
               padding: '2.5rem', border: '1px solid rgba(255,255,255,0.05)', 
-              backgroundColor: '#0a1120', transition: 'transform 0.3s ease',
+              transition: 'all 0.3s ease',
               display: 'flex', flexDirection: 'column', alignItems: isArabic ? 'flex-end' : 'flex-start'
             }}>
               <div style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>{feat.icon}</div>
@@ -316,14 +312,12 @@ function LandingPage() {
             const descEn = plan.description || (plan.name.includes('starter') ? 'Smart processing capacity for startups seeking precision.' : (plan.name.includes('professional') ? 'Advanced analytical power for ambitious recruitment teams.' : 'Comprehensive solutions and superior processing for large enterprises.'));
             
             return (
-              <div key={plan._id || i} style={{
+              <div key={plan._id || i} className="glass-panel hover-glow" style={{
                 background: isPro ? 'linear-gradient(180deg, rgba(59,130,246,0.1) 0%, rgba(5,10,20,1) 100%)' : '#050a14',
                 border: `1px solid ${isPro ? color : 'rgba(255,255,255,0.05)'}`,
                 borderRadius: '16px', padding: '3rem 2rem', position: 'relative',
-                display: 'flex', flexDirection: 'column', transition: 'transform 0.3s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-10px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                display: 'flex', flexDirection: 'column'
+              }}>
                 {isPro && (
                   <div style={{
                     position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)',
@@ -433,14 +427,8 @@ function LandingPage() {
               <strong style={{ color: '#fff' }}>{selectedPlanName}</strong>
             </p>
 
-            {subSuccess ? (
-              <div style={{ padding: '1.5rem', textAlign: 'center', color: '#10b981', background: 'rgba(16,185,129,0.1)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)' }}>
-                <h3>{subSuccess}</h3>
-              </div>
-            ) : (
-              <form onSubmit={handleSubSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {subError && <div style={{ color: '#ef4444', padding: '0.75rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>{subError}</div>}
-                
+            {/* Removed internal error/success messages in favor of toast */}
+            <form onSubmit={handleSubSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>{isArabic ? 'اسمك بالكامل' : 'Your Name'}</label>
                   <input type="text" required className="form-control" style={{ padding: '0.7rem' }} value={subForm.clientName} onChange={e => setSubForm({...subForm, clientName: e.target.value})} placeholder={isArabic ? 'أحمد محمد' : 'John Doe'} />
@@ -462,7 +450,6 @@ function LandingPage() {
                   {subLoading ? (isArabic ? 'جاري الإرسال...' : 'Sending...') : (isArabic ? 'إرسال الطلب' : 'Submit Request')}
                 </button>
               </form>
-            )}
           </div>
         </div>
       )}

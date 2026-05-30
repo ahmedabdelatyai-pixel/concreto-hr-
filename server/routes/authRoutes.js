@@ -16,6 +16,12 @@ const generateToken = (userId, companyId) => {
   return jwt.sign({ userId, companyId }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 };
 
+const sanitizeUser = (user) => {
+  const obj = user.toJSON ? user.toJSON() : user;
+  delete obj.password;
+  return obj;
+};
+
 // Register New Company & User
 router.post('/register', authLimiter, async (req, res) => {
   try {
@@ -83,7 +89,7 @@ router.post('/register', authLimiter, async (req, res) => {
     res.status(201).json({
       message: 'تم التسجيل بنجاح | Registration successful',
       token,
-      user: user.toJSON(),
+      user: sanitizeUser(user),
       company: {
         _id: company._id,
         name: company.name,
@@ -139,7 +145,7 @@ router.post('/login', authLimiter, async (req, res) => {
     res.json({
       message: 'تم تسجيل الدخول بنجاح | Login successful',
       token,
-      user: user.toJSON(),
+      user: sanitizeUser(user),
       company: {
         _id: user.company._id,
         name: user.company.name,
@@ -166,7 +172,7 @@ router.get('/me', authenticate, async (req, res) => {
     const plan = await Plan.findOne({ name: (req.user.company.subscription || 'starter').toLowerCase() });
     
     res.json({
-      user: req.user.toJSON(),
+      user: sanitizeUser(req.user),
       company: {
         _id: req.user.company._id,
         name: req.user.company.name,
@@ -222,7 +228,7 @@ router.post('/company/users', authenticate, authorize('admin'), companyOnly, asy
     await newUser.save();
     res.status(201).json({
       message: 'تم إنشاء المستخدم بنجاح | User created successfully',
-      user: newUser.toJSON()
+      user: sanitizeUser(newUser)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -256,7 +262,7 @@ router.put('/users/:id', authenticate, async (req, res) => {
 
     res.json({
       message: 'تم تحديث المستخدم بنجاح | User updated',
-      user: user.toJSON()
+      user: sanitizeUser(user)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -278,7 +284,7 @@ router.patch('/users/:id/disable', authenticate, authorize('admin'), async (req,
 
     res.json({
       message: 'تم تعطيل المستخدم | User disabled',
-      user: user.toJSON()
+      user: sanitizeUser(user)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -45,7 +45,7 @@ class ErrorBoundary extends Component {
             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚠️</div>
             
             <h1 style={{ fontSize: '1.8rem', marginBottom: '1rem', color: '#ef4444' }}>
-              Oops! Something went wrong
+              {document.documentElement.lang === 'ar' ? 'عذراً! حدث خطأ غير متوقع' : 'Oops! Something went wrong'}
             </h1>
             
             <p style={{ 
@@ -53,18 +53,18 @@ class ErrorBoundary extends Component {
               marginBottom: '1.5rem',
               lineHeight: '1.6'
             }}>
-              {this.state.error?.message || 'An unexpected error occurred. Please try again.'}
+              {document.documentElement.lang === 'ar' ? 'نعتذر عن هذا الخلل. يرجى المحاولة مرة أخرى.' : (this.state.error?.message || 'An unexpected error occurred. Please try again.')}
             </p>
 
             <details style={{ 
               marginBottom: '1.5rem', 
-              textAlign: 'left',
+              textAlign: document.documentElement.lang === 'ar' ? 'right' : 'left',
               padding: '1rem',
               backgroundColor: 'rgba(0,0,0,0.1)',
               borderRadius: '8px'
             }}>
               <summary style={{ cursor: 'pointer', fontWeight: '600', marginBottom: '0.5rem' }}>
-                Error Details
+                {document.documentElement.lang === 'ar' ? 'تفاصيل الخطأ' : 'Error Details'}
               </summary>
               <pre style={{
                 overflowX: 'auto',
@@ -81,14 +81,14 @@ class ErrorBoundary extends Component {
                 className="btn btn-primary"
                 style={{ padding: '0.7rem' }}
               >
-                Try Again
+                {document.documentElement.lang === 'ar' ? 'حاول مرة أخرى' : 'Try Again'}
               </button>
               <button
                 onClick={() => window.location.href = '/'}
                 className="btn btn-outline"
                 style={{ padding: '0.7rem' }}
               >
-                Go to Home
+                {document.documentElement.lang === 'ar' ? 'العودة للرئيسية' : 'Go to Home'}
               </button>
             </div>
           </div>
@@ -111,7 +111,7 @@ class ErrorBoundary extends Component {
             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🚨</div>
             
             <h1 style={{ fontSize: '1.8rem', marginBottom: '1rem', color: '#ef4444' }}>
-              System Recovery
+              {document.documentElement.lang === 'ar' ? 'استعادة النظام' : 'System Recovery'}
             </h1>
             
             <p style={{ 
@@ -119,7 +119,7 @@ class ErrorBoundary extends Component {
               marginBottom: '1.5rem',
               lineHeight: '1.6'
             }}>
-              The application encountered multiple errors. Please refresh the page or contact support.
+              {document.documentElement.lang === 'ar' ? 'واجه النظام أخطاء متكررة. يرجى تحديث الصفحة أو التواصل مع الدعم الفني.' : 'The application encountered multiple errors. Please refresh the page or contact support.'}
             </p>
 
             <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
@@ -128,14 +128,14 @@ class ErrorBoundary extends Component {
                 className="btn btn-primary"
                 style={{ padding: '0.7rem' }}
               >
-                Refresh Page
+                {document.documentElement.lang === 'ar' ? 'تحديث الصفحة' : 'Refresh Page'}
               </button>
               <button
                 onClick={() => window.location.href = 'mailto:support@talentflow.io'}
                 className="btn btn-outline"
                 style={{ padding: '0.7rem' }}
               >
-                Contact Support
+                {document.documentElement.lang === 'ar' ? 'تواصل مع الدعم الفني' : 'Contact Support'}
               </button>
             </div>
           </div>

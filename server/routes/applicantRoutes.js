@@ -12,9 +12,11 @@ router.get('/', authenticate, companyOnly, async (req, res) => {
     if (status && status !== 'all') query.status = status;
     if (jobId && jobId !== 'all') query.jobId = jobId;
     if (search) {
+      const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const safeSearch = escapeRegExp(search);
       query.$or = [
-        { 'candidate.name': { $regex: search, $options: 'i' } },
-        { 'candidate.email': { $regex: search, $options: 'i' } }
+        { 'candidate.name': { $regex: safeSearch, $options: 'i' } },
+        { 'candidate.email': { $regex: safeSearch, $options: 'i' } }
       ];
     }
 
@@ -68,9 +70,10 @@ router.put('/:id', authenticate, companyOnly, async (req, res) => {
 });
 
 // POST create
-router.post('/', async (req, res) => {
+router.post('/', authenticate, companyOnly, async (req, res) => {
   try {
-    const applicant = new Applicant(req.body);
+    const applicantData = { ...req.body, company: req.companyId };
+    const applicant = new Applicant(applicantData);
     const saved = await applicant.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -94,22 +97,22 @@ router.patch('/:id/status', authenticate, companyOnly, async (req, res) => {
   }
 });
 
+// CLEAR ALL (For a company)
+router.delete('/clear/all', authenticate, companyOnly, async (req, res) => {
+  try {
+    await Applicant.deleteMany({ company: req.companyId });
+    res.json({ message: 'All applicants cleared for this company' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE
 router.delete('/:id', authenticate, companyOnly, async (req, res) => {
   try {
     const applicant = await Applicant.findOneAndDelete({ _id: req.params.id, company: req.companyId });
     if (!applicant) return res.status(404).json({ message: 'Applicant not found or unauthorized' });
     res.json({ message: 'Deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// CLEAR ALL (For a company)
-router.delete('/clear/all', authenticate, companyOnly, async (req, res) => {
-  try {
-    await Applicant.deleteMany({ company: req.companyId });
-    res.json({ message: 'All applicants cleared for this company' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

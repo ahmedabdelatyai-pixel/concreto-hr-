@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const { apiLimiter } = require('../middleware/rateLimiter');
 
 // Fallback template generator (Guarantees 100% success if AI fails)
 const generateFallbackJD = (title, department) => {
@@ -103,7 +104,7 @@ const getKeys = (prefix) => {
 
 
 // POST /api/ai/generate-jd
-router.post('/generate-jd', async (req, res) => {
+router.post('/generate-jd', apiLimiter, async (req, res) => {
   const { title, department } = req.body;
   
   // Collect all potential keys to allow rotation if one is exhausted
@@ -169,7 +170,7 @@ Format: Plain text with clear sections.`;
 });
 
 // POST /api/ai/generate-jd-questions
-router.post('/generate-jd-questions', async (req, res) => {
+router.post('/generate-jd-questions', apiLimiter, async (req, res) => {
   const { title, department, description, count, language } = req.body;
   
   const targetCount = count || 5;
@@ -316,6 +317,206 @@ Return ONLY a JSON array in this format:
   ];
 
   return res.status(200).json({ questions: fallbackQuestions.slice(0, targetCount), provider: 'fallback_template' });
+});
+
+// POST /api/ai/analyze-cv
+router.post('/analyze-cv', apiLimiter, async (req, res) => {
+  const { contentDescription } = req.body;
+  const geminiKeys = getKeys('GEMINI_API_KEY');
+  const openaiKeys = getKeys('OPENAI_API_KEY');
+
+  const prompt = `You are an expert CV parser for TalentFlow AI recruitment platform.
+Analyze this CV carefully:
+
+${contentDescription}
+
+Return a JSON object with EXACT keys:
+{
+  "summary": "2-3 sentence professional summary",
+  "skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
+  "experience_years": <integer 0-30>,
+  "education": "Highest degree and field",
+  "technical_match": <integer 0-100>,
+  "is_fit_for_interview": <boolean true/false>
+}`;
+
+  for (let key of geminiKeys) {
+    try {
+      const resultStr = await callGemini(key, prompt, "You are a senior technical recruiter. Return JSON ONLY.", 'gemini-1.5-flash');
+      const raw = resultStr.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+      return res.json(JSON.parse(raw));
+    } catch(e) {}
+  }
+  
+  for (let key of openaiKeys) {
+    try {
+      const resultStr = await callOpenAI(key, prompt, "You are a senior technical recruiter. Return JSON ONLY.");
+      const raw = resultStr.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+      return res.json(JSON.parse(raw));
+    } catch(e) {}
+  }
+  
+  return res.status(500).json({ message: "AI Analysis failed" });
+});
+
+// POST /api/ai/generate-questions
+router.post('/generate-questions', apiLimiter, async (req, res) => {
+  const { jobTitle, cvData, language, customBank, targetCount, jobDescription } = req.body;
+  const geminiKeys = getKeys('GEMINI_API_KEY');
+  const openaiKeys = getKeys('OPENAI_API_KEY');
+  
+  const hasArabicCustom = (customBank || []).some(q => {
+    const text = typeof q === 'string' ? q : (q.text || q.question || '');
+    return /[\u0600-\u06FF]/.test(text);
+  });
+  const finalLanguage = hasArabicCustom ? 'ar' : (language || 'en');
+  const isAr = finalLanguage === 'ar';
+
+  const cvContext = cvData
+    ? `\nCANDIDATE CV:\nSummary: "${cvData.summary}"\nSkills: ${(cvData.skills||[]).join(', ')}\nExperience: ${cvData.experience_years} years`
+    : '';
+  const jdContext = jobDescription
+    ? `\nJOB DESCRIPTION:\n${jobDescription.slice(0, 1500)}`
+    : '';
+
+  const customCount = Math.min((customBank || []).length, targetCount);
+  const aiCount = Math.max(0, targetCount - customCount);
+
+  const structuredPrompt = isAr ? `
+أنت محاور ذكاء اصطناعي متخصص في التوظيف.
+العدد المطلوب: ${aiCount} سؤال.
+الوظيفة: "${jobTitle}"
+${jdContext}
+${cvContext}
+يجب أن تكون الأسئلة موزعة: 30% صح أو غلط، 40% اختيارات متعدة، 30% مقالية.
+الأسئلة باللغة العربية ومخصصة للمتقدم.
+أخرج JSON array بهذا الشكل:
+[{ "type": "truefalse", "question": "...", "correctAnswer": "true", "category": "Technical", "weight": 1 },
+ { "type": "mcq", "question": "...", "choices": ["أ", "ب", "ج", "د"], "correctAnswer": "أ", "category": "Technical", "weight": 1.2 },
+ { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 }]`
+  : `
+You are an AI interviewer. Generate ${aiCount} questions.
+Job Title: "${jobTitle}"
+${jdContext}
+${cvContext}
+Distribution: 30% True/False, 40% MCQ, 30% Essay.
+Questions MUST be in English and personalized.
+Return ONLY a JSON array:
+[{ "type": "truefalse", "question": "...", "correctAnswer": "true", "category": "Technical", "weight": 1 },
+ { "type": "mcq", "question": "...", "choices": ["A", "B", "C", "D"], "correctAnswer": "A", "category": "Technical", "weight": 1.2 },
+ { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 }]`;
+
+  let aiQuestions = [];
+  try {
+    for (let key of geminiKeys) {
+      try {
+        const resultStr = await callGemini(key, structuredPrompt, "Return JSON ONLY.", 'gemini-1.5-flash');
+        const raw = resultStr.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+        const parsed = JSON.parse(raw);
+        aiQuestions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+        if(aiQuestions.length > 0) break;
+      } catch(e) {}
+    }
+    if (aiQuestions.length === 0) {
+      for (let key of openaiKeys) {
+        try {
+          const resultStr = await callOpenAI(key, structuredPrompt, "Return JSON ONLY.");
+          const raw = resultStr.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+          const parsed = JSON.parse(raw);
+          aiQuestions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+          if(aiQuestions.length > 0) break;
+        } catch(e) {}
+      }
+    }
+
+    const correctAnswers = {};
+    const formattedCustom = (customBank || []).slice(0, customCount).map((q, i) => {
+      const type = q.type || 'essay';
+      if (q.correctAnswer) correctAnswers[i] = String(q.correctAnswer);
+      return { type, question: typeof q === 'string' ? q : (q.text || q.question || ''), category: q.category || 'Technical', weight: q.weight || 1, choices: q.choices || [] };
+    });
+
+    const formattedAi = aiQuestions.slice(0, aiCount).map((q, i) => {
+      const globalIndex = formattedCustom.length + i;
+      if (q.correctAnswer) correctAnswers[globalIndex] = String(q.correctAnswer);
+      return { type: q.type || 'essay', question: q.question || q.text || '', choices: q.choices || [], category: q.category || 'Technical', weight: q.weight || 1 };
+    });
+
+    const merged = [...formattedCustom, ...formattedAi];
+    return res.json({ questions: merged.slice(0, targetCount), correctAnswers });
+  } catch(e) {
+    return res.status(500).json({ error: "Failed to generate questions" });
+  }
+});
+
+// POST /api/ai/evaluate
+router.post('/evaluate', apiLimiter, async (req, res) => {
+  const { answers, jobTitle, questionCategories, correctAnswers, cvData, jobDescription } = req.body;
+  const geminiKeys = getKeys('GEMINI_API_KEY');
+  const openaiKeys = getKeys('OPENAI_API_KEY');
+
+  let mcqCorrect = 0;
+  let mcqTotal = 0;
+  const scoredAnswers = answers.map((a, i) => {
+    if (a.type === 'mcq' || a.type === 'truefalse') {
+      mcqTotal++;
+      const expected = String(correctAnswers[i] || '').trim().toLowerCase();
+      const given = String(a.answer || '').trim().toLowerCase();
+      const isCorrect = given === expected || given.includes(expected) || expected.includes(given);
+      if (isCorrect) mcqCorrect++;
+      return { ...a, isCorrect, score: isCorrect ? 10 : 0 };
+    }
+    return { ...a, isCorrect: null, score: null };
+  });
+
+  const mcqScore = mcqTotal > 0 ? Math.round((mcqCorrect / mcqTotal) * 40) : 0;
+  const essayAnswers = scoredAnswers.filter(a => a.type === 'essay');
+
+  const formattedEssays = essayAnswers.map((a, i) => {
+    const category = (questionCategories || [])[answers.indexOf(a)] || 'Technical';
+    return `[Essay ${i + 1}] (${category}): ${a.question}\n[Answer]: ${a.answer}`;
+  }).join('\n\n');
+
+  const prompt = `You are a Senior HR Director evaluating a candidate for "${jobTitle}".
+OBJECTIVE EVALUATION — Essay Questions Only:
+${formattedEssays}
+CANDIDATE CV SKILLS: ${cvData?.skills?.join(', ') || ''}
+JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
+SCORING RULES: Score each essay 0-10.
+MANDATORY OUTPUT (raw JSON only):
+{ "behavior_score": <0-40>, "behavior_reasoning": "...", "attitude_score": <0-30>, "attitude_reasoning": "...", "personality_score": <0-30>, "personality_reasoning": "...", "total_score": <sum>, "disc": { "d": 50, "i": 50, "s": 50, "c": 50 }, "strengths": ["..."], "weaknesses": ["..."], "recommendation": "<Strong Fit | Potential Fit | Not Fit>", "gap_analysis": "..." }`;
+
+  try {
+    let rawStr = null;
+    for (let key of geminiKeys) {
+      try {
+        rawStr = await callGemini(key, prompt, "Return JSON ONLY.", 'gemini-1.5-flash');
+        if (rawStr) break;
+      } catch(e) {}
+    }
+    if (!rawStr) {
+      for (let key of openaiKeys) {
+        try {
+          rawStr = await callOpenAI(key, prompt, "Return JSON ONLY.");
+          if (rawStr) break;
+        } catch(e) {}
+      }
+    }
+    
+    if (rawStr) {
+      const raw = rawStr.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+      const result = JSON.parse(raw);
+      const blendedTotal = Math.min(100, Math.round((result.total_score * 0.6) + (mcqScore * 1.0)));
+      let recommendation = result.recommendation;
+      if (blendedTotal >= 80) recommendation = 'Strong Fit';
+      else if (blendedTotal >= 60) recommendation = 'Potential Fit';
+      else if (blendedTotal > 0) recommendation = 'Not Fit';
+      
+      return res.json({ ...result, total_score: blendedTotal, recommendation, mcq_score: mcqScore, essay_score: result.total_score, mcqCorrect, mcqTotal, gap_analysis: result.gap_analysis || '', answers: scoredAnswers });
+    }
+  } catch(e) {}
+
+  return res.status(500).json({ message: "Evaluation failed" });
 });
 
 module.exports = router;

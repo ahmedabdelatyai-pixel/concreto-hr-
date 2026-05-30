@@ -10,9 +10,10 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 
 // ============== MIDDLEWARE ==============
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173'];
+app.use(cors({ origin: allowedOrigins }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // ============== DATABASE CONNECTION ==============
 let dbConnected = false;

@@ -265,7 +265,7 @@ function OwnerPanel() {
   // KSA Branch Management States
   const [ownerRole, setOwnerRole] = useState('main_owner');
   const [ksaPermissions, setKsaPermissions] = useState({
-    password: 'ksa-branch-2026',
+    password: '',
     canManageCompanies: true,
     canManagePlans: true,
     canManageJobs: false,
@@ -276,7 +276,7 @@ function OwnerPanel() {
   const [ksaError, setKsaError] = useState('');
 
   // Owner password dynamic tracker
-  const [activeOwnerSecret, setActiveOwnerSecret] = useState('01553692600A@n');
+  const [activeOwnerSecret, setActiveOwnerSecret] = useState('');
   const OWNER_PASSWORD = activeOwnerSecret;
 
   useEffect(() => {

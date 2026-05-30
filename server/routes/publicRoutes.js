@@ -2,7 +2,15 @@ const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
 const { checkCvLimit, getCompanyPlanStatus } = require('../middleware/checkLimits');
+const { apiLimiter } = require('../middleware/rateLimiter');
 
+// Simple In-Memory Cache for Public Static Data
+const cache = {
+  footerLinks: { data: null, expiry: 0 },
+  userManual: { data: null, expiry: 0 },
+  plans: { data: null, expiry: 0 }
+};
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 // Public job listing for candidate applications
 router.get('/jobs', async (req, res) => {
   try {
@@ -37,7 +45,7 @@ router.get('/jobs/:id', async (req, res) => {
 
 
 // POST log integrity incident (Public access for candidates)
-router.post('/integrity', async (req, res) => {
+router.post('/integrity', apiLimiter, async (req, res) => {
   try {
     const { applicantId, incidentType, description, severity, sessionData } = req.body;
     
@@ -77,7 +85,7 @@ router.post('/integrity', async (req, res) => {
 });
 
 // POST init applicant (Public)
-router.post('/applicants/init', async (req, res) => {
+router.post('/applicants/init', apiLimiter, async (req, res) => {
   try {
     const { candidate, jobId, source, utm_source, utm_medium, utm_campaign } = req.body;
     const Applicant = require('../models/Applicant');
@@ -117,7 +125,7 @@ router.post('/applicants/init', async (req, res) => {
 
 
 // PATCH submit applicant results (Public) + Integrately Webhook
-router.patch('/applicants/:id/submit', async (req, res) => {
+router.patch('/applicants/:id/submit', apiLimiter, async (req, res) => {
   try {
     const { answers, evaluation, cvData, cvFile, accessSecret, cheatAttempts, integrityScore } = req.body;
     const Applicant = require('../models/Applicant');
@@ -199,6 +207,9 @@ router.patch('/applicants/:id/submit', async (req, res) => {
 // GET Global Footer Links (Public)
 router.get('/footer-links', async (req, res) => {
   try {
+    if (cache.footerLinks.data && cache.footerLinks.expiry > Date.now()) {
+      return res.json(cache.footerLinks.data);
+    }
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'footer_links' });
     if (!setting) {
@@ -210,6 +221,7 @@ router.get('/footer-links', async (req, res) => {
         x: 'https://x.com'
       });
     }
+    cache.footerLinks = { data: setting.value, expiry: Date.now() + CACHE_TTL };
     res.json(setting.value);
   } catch (err) {
     // Return safe fallback on error to not break the frontend
@@ -222,11 +234,15 @@ router.get('/footer-links', async (req, res) => {
 // GET User Manual (Public)
 router.get('/user-manual', async (req, res) => {
   try {
+    if (cache.userManual.data && cache.userManual.expiry > Date.now()) {
+      return res.json(cache.userManual.data);
+    }
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'user_manual' });
     if (!setting) {
       return res.json({ text: "مرحباً بك في دليل الاستخدام. جاري التحديث..." });
     }
+    cache.userManual = { data: setting.value, expiry: Date.now() + CACHE_TTL };
     res.json(setting.value);
   } catch (err) {
     res.json({ text: "عذراً، تعذر تحميل دليل الاستخدام حالياً." });
@@ -236,8 +252,12 @@ router.get('/user-manual', async (req, res) => {
 // GET Public Plans
 router.get('/plans', async (req, res) => {
   try {
+    if (cache.plans.data && cache.plans.expiry > Date.now()) {
+      return res.json(cache.plans.data);
+    }
     const Plan = require('../models/Plan');
     const plans = await Plan.find({ active: { $ne: false } }).sort({ price: 1 });
+    cache.plans = { data: plans, expiry: Date.now() + CACHE_TTL };
     res.json(plans);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -245,7 +265,7 @@ router.get('/plans', async (req, res) => {
 });
 
 // POST Subscription Request
-router.post('/subscription-request', async (req, res) => {
+router.post('/subscription-request', apiLimiter, async (req, res) => {
   try {
     const { clientName, companyName, email, phone, planRequested, region } = req.body;
     

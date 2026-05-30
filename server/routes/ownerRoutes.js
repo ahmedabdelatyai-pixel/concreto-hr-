@@ -7,7 +7,8 @@ const Applicant = require('../models/Applicant');
 // Middleware to check for Owner Secret
 const ownerOnly = async (req, res, next) => {
   const secret = req.headers['x-owner-secret'];
-  if (secret === '01553692600A@n') {
+  const MAIN_OWNER_SECRET = process.env.OWNER_PASSWORD || 'change-this-secret';
+  if (secret === MAIN_OWNER_SECRET) {
     req.ownerRole = 'main_owner';
     return next();
   }
@@ -16,12 +17,13 @@ const ownerOnly = async (req, res, next) => {
   try {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
-    const ksaPassword = setting?.value?.password || 'ksa-branch-2026';
+    const fallbackKsa = process.env.KSA_BRANCH_PASSWORD || 'ksa-branch-change-this';
+    const ksaPassword = setting?.value?.password || fallbackKsa;
     
     if (secret === ksaPassword) {
       req.ownerRole = 'ksa_branch';
       req.ksaPermissions = setting?.value || {
-        password: 'ksa-branch-2026',
+        password: fallbackKsa,
         canManageCompanies: true,
         canManagePlans: true,
         canManageJobs: false,
@@ -39,18 +41,20 @@ const ownerOnly = async (req, res, next) => {
 // POST /verify-access -> verifies if secret is Main Owner or KSA Branch Manager
 router.post('/verify-access', async (req, res) => {
   const secret = req.headers['x-owner-secret'] || req.body?.secret;
-  if (secret === '01553692600A@n') {
+  const MAIN_OWNER_SECRET = process.env.OWNER_PASSWORD || 'change-this-secret';
+  if (secret === MAIN_OWNER_SECRET) {
     return res.json({ success: true, role: 'main_owner' });
   }
 
   try {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
-    const ksaPassword = setting?.value?.password || 'ksa-branch-2026';
+    const fallbackKsa = process.env.KSA_BRANCH_PASSWORD || 'ksa-branch-change-this';
+    const ksaPassword = setting?.value?.password || fallbackKsa;
     
     if (secret === ksaPassword) {
       const ksaPerms = setting?.value || {
-        password: 'ksa-branch-2026',
+        password: fallbackKsa,
         canManageCompanies: true,
         canManagePlans: true,
         canManageJobs: false,
@@ -73,8 +77,9 @@ router.get('/ksa-settings', ownerOnly, async (req, res) => {
   try {
     const SystemSettings = require('../models/SystemSettings');
     const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
+    const fallbackKsa = process.env.KSA_BRANCH_PASSWORD || 'ksa-branch-change-this';
     const defaultKsa = {
-      password: 'ksa-branch-2026',
+      password: fallbackKsa,
       canManageCompanies: true,
       canManagePlans: true,
       canManageJobs: false,

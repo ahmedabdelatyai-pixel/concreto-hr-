@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
+import api from '../services/api';
 
 function Help() {
   const { i18n } = useTranslation();
@@ -12,8 +12,7 @@ function Help() {
   useEffect(() => {
     const fetchManual = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || '/api';
-        const res = await axios.get(`${API_URL}/public/user-manual`);
+        const res = await api.get(`/public/user-manual`);
         if (res.data && res.data.text) {
           setManualText(res.data.text);
         }

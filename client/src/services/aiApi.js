@@ -125,11 +125,7 @@ const extractPdfText = async (file) => {
 
 // ─── CV Analysis ──────────────────────────────────────────────────────────────
 export const analyzeCv = async (file) => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  
-  if (!geminiKey && !openaiKey) return null;
-
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   let pdfText = null;
   if (file.type === 'application/pdf') {
     pdfText = await extractPdfText(file);
@@ -139,27 +135,16 @@ export const analyzeCv = async (file) => {
     ? `Full CV Text Content:\n---\n${pdfText}\n---`
     : `File Name: "${file.name}", File Size: ${(file.size / 1024).toFixed(1)} KB`;
 
-  const prompt = `You are an expert CV parser for TalentFlow AI recruitment platform.
-Analyze this CV carefully:
-
-${contentDescription}
-
-Return a JSON object with EXACT keys:
-{
-  "summary": "2-3 sentence professional summary",
-  "skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
-  "experience_years": <integer 0-30>,
-  "education": "Highest degree and field",
-  "technical_match": <integer 0-100>,
-  "is_fit_for_interview": <true if technical_match >= 40>
-}`;
-
   try {
-    if (geminiKey) return await callGemini(geminiKey, prompt, true, 0.3);
-    throw new Error('Gemini skipped');
-  } catch (err) {
-    console.warn('Gemini CV Analysis failed, trying OpenAI...', err.message);
-    if (openaiKey) return await callOpenAI(openaiKey, prompt, true);
+    const response = await fetch(`${API_BASE}/ai/analyze-cv`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentDescription })
+    });
+    if (!response.ok) throw new Error('Server AI failure');
+    return await response.json();
+  } catch (error) {
+    console.error('CV Analysis Proxy Error:', error);
     return null;
   }
 };
@@ -232,172 +217,18 @@ export const generateJDQuestions = async (jobTitle, department = '', description
  * - weight: number
  */
 export const generateQuestions = async (jobTitle, cvData, language = 'en', customBank = [], targetCount = 10, jobDescription = '') => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-  // NEW: Detect language from custom questions if not explicitly Arabic
-  // If ANY custom question is Arabic, we treat the whole interview as Arabic
-  const hasArabicCustom = customBank.some(q => {
-    const text = typeof q === 'string' ? q : (q.text || q.question || '');
-    return /[\u0600-\u06FF]/.test(text);
-  });
-  const finalLanguage = hasArabicCustom ? 'ar' : language;
-  const isAr = finalLanguage === 'ar';
-
-  const cvContext = cvData
-    ? `\nCANDIDATE CV:\nSummary: "${cvData.summary}"\nSkills: ${cvData.skills?.join(', ')}\nExperience: ${cvData.experience_years} years`
-    : '';
-  const jdContext = jobDescription
-    ? `\nJOB DESCRIPTION:\n${jobDescription.slice(0, 1500)}`
-    : '';
-
-  // Custom questions count (always essay type)
-  const customCount = Math.min(customBank.length, targetCount);
-  // AI fills the rest: always generate 10 structured questions (3 T/F + 4 MCQ + 3 Essay)
-  const aiCount = Math.max(0, targetCount - customCount);
-
-
-  // Build structured request
-  const structuredPrompt = isAr ? `
-أنت محاور ذكاء اصطناعي متخصص في التوظيف لمنصة TalentFlow.
-مهمتك: توليد بالضبط ${aiCount} سؤال مقابلة مخصص لهذا المتقدم.
-
-الوظيفة: "${jobTitle}"
-${jdContext}
-${cvContext}
-
-يجب أن تكون الأسئلة موزعة هكذا (بالنسب الأقرب لـ ${aiCount} أسئلة):
-- 30% أسئلة صح أو غلط (truefalse)
-- 40% أسئلة اختيار من متعدد (mcq) مع 4 خيارات واضحة
-- 30% أسئلة مقالية (essay) تقيس التفكير
-
-القواعد:
-1. الأسئلة باللغة العربية
-2. مخصصة لهذا المتقدم بناءً على الـ CV والـ JD
-3. الأسئلة التقنية يجب أن تختبر مهارات حقيقية وليست عامة
-
-أخرج JSON array فقط بهذا الشكل:
-[{
-  "type": "truefalse",
-  "question": "نص السؤال",
-  "correctAnswer": "true أو false",
-  "category": "Technical",
-  "weight": 1
-}, {
-  "type": "mcq",
-  "question": "نص السؤال",
-  "choices": ["الخيار أ", "الخيار ب", "الخيار ج", "الخيار د"],
-  "correctAnswer": "الخيار الصحيح كما هو مكتوب في choices",
-  "category": "Technical",
-  "weight": 1.2
-}, {
-  "type": "essay",
-  "question": "نص السؤال المقالي",
-  "category": "Behavioral",
-  "weight": 1
-}]`
-  : `
-You are an AI interviewer for TalentFlow recruitment platform.
-Task: Generate exactly ${aiCount} personalized interview questions for this candidate.
-
-Job Title: "${jobTitle}"
-${jdContext}
-${cvContext}
-
-Distribute questions as follows (closest distribution for ${aiCount} questions):
-- 30% True/False questions (truefalse)
-- 40% Multiple Choice questions (mcq) with 4 clear answer choices
-- 30% Essay questions (essay) testing depth of thought
-
-Rules:
-1. Questions MUST be in English
-2. Personalize based on the candidate's CV and the Job Description
-3. Technical questions must test real, specific skills — NOT generic questions
-
-Return ONLY a JSON array in this format:
-[{
-  "type": "truefalse",
-  "question": "Question text",
-  "correctAnswer": "true or false",
-  "category": "Technical",
-  "weight": 1
-}, {
-  "type": "mcq",
-  "question": "Question text",
-  "choices": ["Option A", "Option B", "Option C", "Option D"],
-  "correctAnswer": "The exact correct option text as written in choices",
-  "category": "Technical",
-  "weight": 1.2
-}, {
-  "type": "essay",
-  "question": "Open-ended question",
-  "category": "Behavioral",
-  "weight": 1
-}]`;
-
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   try {
-    let aiQuestions = [];
-    if (geminiKey) {
-      const aiResult = await callGemini(geminiKey, structuredPrompt, true, 0.7);
-      aiQuestions = Array.isArray(aiResult) ? aiResult
-        : (Array.isArray(aiResult?.questions) ? aiResult.questions
-          : Object.values(aiResult).find(v => Array.isArray(v)) || []);
-    } else if (openaiKey) {
-      const aiResult = await callOpenAI(openaiKey, structuredPrompt, true);
-      aiQuestions = Array.isArray(aiResult) ? aiResult
-        : (Array.isArray(aiResult?.questions) ? aiResult.questions
-          : Object.values(aiResult).find(v => Array.isArray(v)) || []);
-    }
-
-    // Build correct answers map (index → answer) — never exposed to UI directly
-    const correctAnswers = {};
-
-    // Format custom questions (preserve type if provided)
-    const formattedCustom = customBank.slice(0, customCount).map((q, i) => {
-      const type = q.type || 'essay';
-      if (q.correctAnswer !== undefined && q.correctAnswer !== null && q.correctAnswer !== '') {
-        correctAnswers[i] = String(q.correctAnswer);
-      }
-      return {
-        type,
-        question: typeof q === 'string' ? q : (q.text || q.question || ''),
-        category: q.category || 'Technical',
-        weight: q.weight || (type === 'mcq' ? 1.2 : 1),
-        choices: q.choices || [],
-      };
+    const response = await fetch(`${API_BASE}/ai/generate-questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobTitle, cvData, language, customBank, targetCount, jobDescription })
     });
-
-    // Format AI questions + extract correct answers
-    const formattedAi = aiQuestions.slice(0, aiCount).map((q, i) => {
-      const globalIndex = formattedCustom.length + i;
-      if (q.correctAnswer !== undefined && q.correctAnswer !== null && q.correctAnswer !== '') {
-        correctAnswers[globalIndex] = String(q.correctAnswer);
-      }
-      return {
-        type: q.type || 'essay',
-        question: q.question || q.text || '',
-        choices: q.choices || [],
-        category: q.category || 'Technical',
-        weight: q.weight || (q.type === 'mcq' ? 1.2 : 1),
-      };
-    });
-
-    let merged = [...formattedCustom, ...formattedAi];
-
-    // Pad with fallbacks if needed
-    if (merged.length < targetCount) {
-      const padding = getStaticFallback(finalLanguage, targetCount - merged.length, merged.map(q => q.question));
-      merged = [...merged, ...padding];
-    }
-
-    return { questions: merged.slice(0, targetCount), correctAnswers };
-
+    if (!response.ok) throw new Error('Server AI failure');
+    return await response.json();
   } catch (error) {
-    console.error('Gemini Question Generation Error:', error);
-    return {
-      questions: buildFallbackQuestions(customBank, targetCount, finalLanguage),
-      correctAnswers: {}
-    };
+    console.error('Generate Questions Proxy Error:', error);
+    return { questions: buildFallbackQuestions(customBank, targetCount, language), correctAnswers: {} };
   }
 };
 
@@ -469,116 +300,19 @@ export const evaluateInterview = async (
   cvData = null,
   jobDescription = ''
 ) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  // ── Step 1: Auto-score MCQ and T/F ──
-  let mcqCorrect = 0;
-  let mcqTotal = 0;
-  const scoredAnswers = answers.map((a, i) => {
-    if (a.type === 'mcq' || a.type === 'truefalse') {
-      mcqTotal++;
-      const expected = correctAnswers[i];
-      const given = String(a.answer || '').trim().toLowerCase();
-      const correct = String(expected || '').trim().toLowerCase();
-      const isCorrect = given === correct || given.includes(correct) || correct.includes(given);
-      if (isCorrect) mcqCorrect++;
-      return { ...a, isCorrect, score: isCorrect ? 10 : 0 };
-    }
-    return { ...a, isCorrect: null, score: null };
-  });
-
-  const mcqScore = mcqTotal > 0 ? Math.round((mcqCorrect / mcqTotal) * 40) : 0; // MCQ = 40% of total
-
-  // ── Step 2: AI evaluates essay questions only ──
-  const essayAnswers = scoredAnswers.filter(a => a.type === 'essay');
-
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-  const formattedEssays = essayAnswers.map((a, i) => {
-    const category = questionCategories[answers.indexOf(a)] || 'Technical';
-    return `[Essay ${i + 1}] (${category}): ${a.question}\n[Answer]: ${a.answer}`;
-  }).join('\n\n');
-
-  const cvSkills = cvData?.skills?.join(', ') || '';
-  const prompt = `You are a Senior HR Director evaluating a candidate for "${jobTitle}".
-
-OBJECTIVE EVALUATION — Essay Questions Only (MCQ/T-F already auto-scored):
-
-${formattedEssays}
-
-CANDIDATE CV SKILLS: ${cvSkills}
-JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
-
-SCORING RULES:
-- Score each essay 0-10 based on STAR method, depth, and relevance
-- Be strict: only 9-10 for truly impressive, detailed answers
-
-MANDATORY OUTPUT (raw JSON only):
-{
-  "behavior_score": <0-40>,
-  "behavior_reasoning": "<explanation>",
-  "attitude_score": <0-30>,
-  "attitude_reasoning": "<explanation>",
-  "personality_score": <0-30>,
-  "personality_reasoning": "<explanation>",
-  "total_score": <sum of the three above>,
-  "disc": { "d": <0-100>, "i": <0-100>, "s": <0-100>, "c": <0-100> },
-  "strengths": ["..."],
-  "weaknesses": ["..."],
-  "recommendation": "<Strong Fit | Potential Fit | Not Fit>",
-  "gap_analysis": "<Specific gaps found>"
-}`;
-
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   try {
-    let result = null;
-    if (geminiKey) {
-      result = await callGemini(geminiKey, prompt, true, 0.1);
-    } else if (openaiKey) {
-      result = await callOpenAI(openaiKey, prompt, true);
-    } else {
-      throw new Error('No AI key for evaluation');
-    }
-
-    // Blend MCQ score with essay evaluation
-    const blendedTotal = Math.min(100, Math.round(
-      (result.total_score * 0.6) + (mcqScore * 1.0)
-    ));
-    let recommendation = result.recommendation;
-    if (blendedTotal >= 80) recommendation = 'Strong Fit';
-    else if (blendedTotal >= 60) recommendation = 'Potential Fit';
-    else if (blendedTotal > 0) recommendation = 'Not Fit';
-
-    return {
-      ...result,
-      total_score: blendedTotal,
-      recommendation,
-      mcq_score: mcqScore,
-      essay_score: result.total_score,
-      mcqCorrect,
-      mcqTotal,
-      gap_analysis: result.gap_analysis || '',
-      answers: scoredAnswers // ✅ Return the answers with isCorrect flags
-    };
-
-
-  } catch (err) {
-    console.warn('Evaluation failed, trying fallback...', err.message);
-    if (openaiKey && geminiKey) {
-      try {
-        const result = await callOpenAI(openaiKey, prompt, true);
-        const blendedTotal = Math.min(100, Math.round((result.total_score * 0.6) + (mcqScore * 1.0)));
-        let recommendation = result.recommendation;
-        if (blendedTotal >= 80) recommendation = 'Strong Fit';
-        else if (blendedTotal >= 60) recommendation = 'Potential Fit';
-        else if (blendedTotal > 0) recommendation = 'Not Fit';
-        return { ...result, total_score: blendedTotal, recommendation, mcq_score: mcqScore, mcqCorrect, mcqTotal, answers: scoredAnswers };
-      } catch (oerr) {
-        console.error('OpenAI evaluation fallback failed:', oerr);
-      }
-    }
+    const response = await fetch(`${API_BASE}/ai/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers, jobTitle, questionCategories, correctAnswers, cvData, jobDescription })
+    });
+    if (!response.ok) throw new Error('Server AI failure');
+    return await response.json();
+  } catch (error) {
+    console.error('Evaluate Interview Proxy Error:', error);
     const fallback = fallbackMockEvaluation(answers, questionCategories);
-    return { ...fallback, mcq_score: mcqScore, mcqCorrect, mcqTotal };
+    return { ...fallback, mcq_score: 0, mcqCorrect: 0, mcqTotal: 0, answers };
   }
 };
 
