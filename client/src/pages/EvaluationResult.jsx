@@ -24,6 +24,7 @@ function EvaluationResult() {
   const isDemoMode = useInterviewStore(state => state.isDemoMode);
   const cvData = useInterviewStore(state => state.cvData);
   const cvFile = useInterviewStore(state => state.cvFile);
+  const emotionData = useInterviewStore(state => state.emotionData);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
@@ -99,6 +100,7 @@ function EvaluationResult() {
             // ✅ Integrity data
             cheatAttempts,
             integrityScore,
+            emotionData
           };
 
           const submitRes = await api.patch(`/public/applicants/${candidate.applicantId}/submit`, mappedData);

@@ -66,7 +66,7 @@ function InterviewPhase() {
   const setEmotionData = useInterviewStore(state => state.setEmotionData);
 
   // Emotion Metrics aggregation
-  const [emotionSamples, setEmotionSamples] = useState([]);
+  const emotionSamplesRef = useRef([]);
   
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -393,10 +393,11 @@ function InterviewPhase() {
         setIsTyping(false);
         
         // Aggregate emotion data
-        if (emotionSamples.length > 0) {
-          const avgConfidence = Math.round(emotionSamples.reduce((sum, s) => sum + s.confidence, 0) / emotionSamples.length);
-          const avgStress = Math.round(emotionSamples.reduce((sum, s) => sum + s.stress, 0) / emotionSamples.length);
-          const avgFocus = Math.round(emotionSamples.reduce((sum, s) => sum + s.focus, 0) / emotionSamples.length);
+        const samples = emotionSamplesRef.current;
+        if (samples.length > 0) {
+          const avgConfidence = Math.round(samples.reduce((sum, s) => sum + s.confidence, 0) / samples.length);
+          const avgStress = Math.round(samples.reduce((sum, s) => sum + s.stress, 0) / samples.length);
+          const avgFocus = Math.round(samples.reduce((sum, s) => sum + s.focus, 0) / samples.length);
           setEmotionData({ confidence: avgConfidence, stress: avgStress, focus: avgFocus });
         }
 
@@ -536,7 +537,7 @@ function InterviewPhase() {
             </h4>
             <VideoAnalyzer 
               onAnalysisComplete={(metrics) => {
-                setEmotionSamples(prev => [...prev, metrics]);
+                emotionSamplesRef.current.push(metrics);
               }} 
             />
             <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '1rem', textAlign: 'center', lineHeight: '1.5' }}>
