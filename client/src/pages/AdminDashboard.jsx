@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { generateJD, generateJDQuestions } from '../services/aiApi';
+import InstallAppButton from '../components/InstallAppButton';
 
 const LockedFeatureBadge = ({ title, isAr }) => (
   <div style={{
@@ -439,6 +440,7 @@ function AdminDashboard() {
           <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
             {t('Logout', 'تسجيل الخروج')}
           </button>
+          <InstallAppButton />
         </div>
       </div>
 

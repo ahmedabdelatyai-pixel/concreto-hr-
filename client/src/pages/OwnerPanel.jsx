@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { refreshAiSettings } from '../services/aiApi';
+import InstallAppButton from '../components/InstallAppButton';
 
 // ── Inline component for editing a plan's limits ──────────────────────────────
 const AVAILABLE_FEATURES = [
@@ -844,13 +845,16 @@ function OwnerPanel() {
             </h1>
             <p className="text-muted">{isAr ? 'التحكم الكامل في الشركات، الاشتراكات، وعقل النظام الذكي' : 'Full control over companies, subscriptions, and the AI brain'}</p>
           </div>
-          <button
-            className="btn btn-outline"
-            onClick={() => setIsAuthenticated(false)}
-            style={{ padding: '0.8rem 1.5rem', borderColor: 'rgba(255,255,255,0.1)' }}
-          >
-            {isAr ? 'خروج' : 'Logout'}
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <InstallAppButton />
+            <button
+              className="btn btn-outline"
+              onClick={() => setIsAuthenticated(false)}
+              style={{ padding: '0.8rem 1.5rem', borderColor: 'rgba(255,255,255,0.1)' }}
+            >
+              {isAr ? 'خروج' : 'Logout'}
+            </button>
+          </div>
         </div>
 
         {/* Role Banner Indicator */}
