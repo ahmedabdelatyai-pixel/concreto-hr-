@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import { useTranslation } from 'react-i18next';
 import { AuthProvider } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
@@ -32,6 +34,7 @@ import Help from './pages/Help';
 
 function App() {
   const { i18n } = useTranslation();
+  const location = useLocation();
 
   const RequireCandidate = ({ children }) => {
     const candidate = useInterviewStore(state => state.candidate);
@@ -59,36 +62,38 @@ function App() {
             style: { background: '#111a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' },
             success: { iconTheme: { primary: '#10b981', secondary: '#fff' } }
           }} />
-          <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
-          <Route path="/apply" element={<CandidateProfile />} />
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/profile" element={<CandidateProfile />} />
-          <Route path="/upload-cv" element={<RequireCandidate><CvUpload /></RequireCandidate>} />
-          <Route path="/interview" element={<RequireInterview><InterviewPhase /></RequireInterview>} />
-          <Route path="/completion" element={<RequireInterview><CompletionScreen /></RequireInterview>} />
-          <Route path="/evaluation" element={<RequireInterview><EvaluationResult /></RequireInterview>} />
-          <Route path="/owner" element={<OwnerPanel />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/help" element={<Help />} />
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              {/* Public Routes */}
+              <Route path="/login" element={<PageTransition><AuthPage /></PageTransition>} />
+              <Route path="/admin/login" element={<PageTransition><AdminLogin /></PageTransition>} />
+              <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+              <Route path="/apply" element={<PageTransition><CandidateProfile /></PageTransition>} />
+              <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+              <Route path="/profile" element={<PageTransition><CandidateProfile /></PageTransition>} />
+              <Route path="/upload-cv" element={<RequireCandidate><PageTransition><CvUpload /></PageTransition></RequireCandidate>} />
+              <Route path="/interview" element={<RequireInterview><PageTransition><InterviewPhase /></PageTransition></RequireInterview>} />
+              <Route path="/completion" element={<RequireInterview><PageTransition><CompletionScreen /></PageTransition></RequireInterview>} />
+              <Route path="/evaluation" element={<RequireInterview><PageTransition><EvaluationResult /></PageTransition></RequireInterview>} />
+              <Route path="/owner" element={<PageTransition><OwnerPanel /></PageTransition>} />
+              <Route path="/terms" element={<PageTransition><Terms /></PageTransition>} />
+              <Route path="/privacy" element={<PageTransition><Privacy /></PageTransition>} />
+              <Route path="/help" element={<PageTransition><Help /></PageTransition>} />
 
-          {/* Protected Admin Routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute requiredRoles={['admin', 'hr', 'recruiter', 'viewer']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
+              {/* Protected Admin Routes */}
+              <Route
+                path="/admin/*"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'hr', 'recruiter', 'viewer']}>
+                    <PageTransition><AdminDashboard /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Catch All */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+              {/* Catch All */}
+              <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
+            </Routes>
+          </AnimatePresence>
       </div>
       <Footer />
     </AuthProvider>
