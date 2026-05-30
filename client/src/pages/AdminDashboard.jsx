@@ -1411,18 +1411,52 @@ function AdminDashboard() {
                   </div>
                 )}
 
-                {/* ✅ Gap Analysis */}
-                {selectedApplicant.evaluation?.gap_analysis && (
+                {/* ✅ Detailed Reasoning */}
+                {selectedApplicant.evaluation?.detailed_reasoning && (
                   <div style={{
-                    padding: '1rem', borderRadius: '8px', marginTop: '0.5rem',
-                    backgroundColor: 'rgba(252,163,17,0.06)', border: '1px solid rgba(252,163,17,0.2)'
+                    padding: '1rem', borderRadius: '8px', marginTop: '1rem',
+                    backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)'
                   }}>
-                    <h4 style={{ color: '#fca311', marginBottom: '0.6rem', fontSize: '0.9rem' }}>
-                      🔍 {t('Gap Analysis (CV vs Interview)', 'تحليل الفجوة')}
+                    <h4 style={{ color: '#3b82f6', marginBottom: '0.6rem', fontSize: '0.9rem' }}>
+                      🧠 {t('Detailed Reasoning', 'تفصيل التقييم')}
                     </h4>
                     <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.7', color: 'rgba(255,255,255,0.85)' }}>
-                      {selectedApplicant.evaluation.gap_analysis}
+                      {selectedApplicant.evaluation.detailed_reasoning}
                     </p>
+                  </div>
+                )}
+
+                {/* ✅ Gap Analysis & Consistency */}
+                {(selectedApplicant.evaluation?.gap_analysis || selectedApplicant.evaluation?.cv_consistency_score > 0) && (
+                  <div style={{
+                    padding: '1rem', borderRadius: '8px', marginTop: '1rem',
+                    backgroundColor: 'rgba(252,163,17,0.06)', border: '1px solid rgba(252,163,17,0.2)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <h4 style={{ color: '#fca311', margin: 0, fontSize: '0.9rem' }}>
+                        🔍 {t('Gap Analysis & Consistency', 'تحليل الفجوة والمصداقية')}
+                      </h4>
+                      {selectedApplicant.evaluation?.cv_consistency_score > 0 && (
+                        <div style={{ fontSize: '0.8rem', backgroundColor: 'rgba(252,163,17,0.2)', padding: '2px 8px', borderRadius: '12px', color: '#fca311' }}>
+                          CV Match: {selectedApplicant.evaluation.cv_consistency_score}%
+                        </div>
+                      )}
+                    </div>
+                    {selectedApplicant.evaluation?.gap_analysis && (
+                      <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.7', color: 'rgba(255,255,255,0.85)', marginBottom: '0.5rem' }}>
+                        {selectedApplicant.evaluation.gap_analysis}
+                      </p>
+                    )}
+                    {selectedApplicant.evaluation?.lie_detection_flags && selectedApplicant.evaluation.lie_detection_flags.length > 0 && (
+                      <div style={{ marginTop: '0.5rem', borderTop: '1px solid rgba(252,163,17,0.2)', paddingTop: '0.5rem' }}>
+                        <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>⚠️ Lie Detection Flags:</div>
+                        <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#ef4444' }}>
+                          {selectedApplicant.evaluation.lie_detection_flags.map((flag, i) => (
+                            <li key={i}>{flag}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

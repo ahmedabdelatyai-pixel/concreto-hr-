@@ -44,6 +44,9 @@ const applicantSchema = new mongoose.Schema({
     mcq_score: Number,      // auto-calculated MCQ/T-F score
     essay_score: Number,    // AI-evaluated essay score
     gap_analysis: String,   // AI-written gap analysis paragraph
+    cv_consistency_score: Number,
+    detailed_reasoning: String,
+    lie_detection_flags: [String]
   },
   // ✅ NEW: Video Emotion Analysis Data
   emotion_data: {

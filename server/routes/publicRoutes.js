@@ -142,6 +142,9 @@ router.patch('/applicants/:id/submit', apiLimiter, async (req, res) => {
       gap_analysis: evaluation?.gap_analysis || '',
       mcq_score: evaluation?.mcq_score,
       essay_score: evaluation?.essay_score,
+      cv_consistency_score: evaluation?.cv_consistency_score || 0,
+      detailed_reasoning: evaluation?.detailed_reasoning || '',
+      lie_detection_flags: evaluation?.lie_detection_flags || []
     };
 
     // SECURITY: Must match both ID and secret to update

@@ -479,14 +479,39 @@ router.post('/evaluate', apiLimiter, async (req, res) => {
     return `[Essay ${i + 1}] (${category}): ${a.question}\n[Answer]: ${a.answer}`;
   }).join('\n\n');
 
-  const prompt = `You are a Senior HR Director evaluating a candidate for "${jobTitle}".
+  const prompt = `You are a Senior HR Director and Expert Psychometrician evaluating a candidate for "${jobTitle}".
 OBJECTIVE EVALUATION — Essay Questions Only:
 ${formattedEssays}
-CANDIDATE CV SKILLS: ${cvData?.skills?.join(', ') || ''}
+
+CANDIDATE CV SKILLS CLAIMED: ${cvData?.skills?.join(', ') || ''}
 JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
-SCORING RULES: Score each essay 0-10.
-MANDATORY OUTPUT (raw JSON only):
-{ "behavior_score": <0-40>, "behavior_reasoning": "...", "attitude_score": <0-30>, "attitude_reasoning": "...", "personality_score": <0-30>, "personality_reasoning": "...", "total_score": <sum>, "disc": { "d": 50, "i": 50, "s": 50, "c": 50 }, "strengths": ["..."], "weaknesses": ["..."], "recommendation": "<Strong Fit | Potential Fit | Not Fit>", "gap_analysis": "...", "retention_probability": <0-100> }`;
+
+SCORING RULES & EXPECTATIONS:
+1. Cross-reference the answers with the CV skills. If the candidate claims high experience but gives shallow answers, flag this as a potential inconsistency.
+2. Score behavior, attitude, and personality from 0 to 40/30/30 respectively.
+3. Write a "detailed_reasoning" paragraph explaining exactly why the candidate got these scores. Be critical and professional.
+4. Calculate a "cv_consistency_score" (0-100) indicating if their answers prove their CV claims.
+5. Provide "lie_detection_flags" if there are major discrepancies between claimed skills and actual answers.
+
+MANDATORY OUTPUT (raw JSON only, no markdown formatting blocks):
+{ 
+  "behavior_score": <0-40>, 
+  "behavior_reasoning": "...", 
+  "attitude_score": <0-30>, 
+  "attitude_reasoning": "...", 
+  "personality_score": <0-30>, 
+  "personality_reasoning": "...", 
+  "total_score": <sum of all scores>, 
+  "disc": { "d": 50, "i": 50, "s": 50, "c": 50 }, 
+  "strengths": ["..."], 
+  "weaknesses": ["..."], 
+  "recommendation": "<Strong Fit | Potential Fit | Not Fit>", 
+  "gap_analysis": "...", 
+  "retention_probability": <0-100>,
+  "cv_consistency_score": <0-100>,
+  "detailed_reasoning": "Comprehensive paragraph explaining the scoring...",
+  "lie_detection_flags": ["Any specific contradictions found, or empty array if none"]
+}`;
 
   try {
     let rawStr = null;

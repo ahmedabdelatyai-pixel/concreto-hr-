@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import * as faceapi from '@vladmandic/face-api';
 
 function VideoAnalyzer({ onAnalysisComplete }) {
   const videoRef = useRef(null);
@@ -8,8 +9,26 @@ function VideoAnalyzer({ onAnalysisComplete }) {
   
   const [stream, setStream] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [metrics, setMetrics] = useState({ confidence: 85, stress: 20, focus: 90 });
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [metrics, setMetrics] = useState({ confidence: 0, stress: 0, focus: 0 });
   const [hasPermission, setHasPermission] = useState(true);
+
+  // Load face-api models
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+        ]);
+        setModelsLoaded(true);
+      } catch (err) {
+        console.error("Failed to load face-api models:", err);
+      }
+    };
+    loadModels();
+  }, []);
 
   // Start Video Stream
   useEffect(() => {
@@ -27,41 +46,77 @@ function VideoAnalyzer({ onAnalysisComplete }) {
         setHasPermission(false);
       }
     };
-    startCamera();
+    if (modelsLoaded) {
+      startCamera();
+    }
 
     return () => {
       if (activeStream) {
         activeStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [modelsLoaded]);
 
-  // Simulate AI Biometric Tracking
+  // Real AI Biometric Tracking using face-api.js
   useEffect(() => {
-    if (!isScanning) return;
+    if (!isScanning || !modelsLoaded || !videoRef.current) return;
 
-    const interval = setInterval(() => {
-      setMetrics(prev => {
-        const newConfidence = Math.min(99, Math.max(70, prev.confidence + (Math.random() * 10 - 5)));
-        const newStress = Math.min(40, Math.max(10, prev.stress + (Math.random() * 8 - 4)));
-        const newFocus = Math.min(99, Math.max(75, prev.focus + (Math.random() * 12 - 6)));
+    let scanInterval;
 
-        const finalMetrics = {
-          confidence: Math.round(newConfidence),
-          stress: Math.round(newStress),
-          focus: Math.round(newFocus)
-        };
+    const detectFaces = async () => {
+      if (videoRef.current && videoRef.current.readyState === 4) {
+        const detection = await faceapi.detectSingleFace(
+          videoRef.current, 
+          new faceapi.TinyFaceDetectorOptions()
+        ).withFaceExpressions();
 
-        if (onAnalysisComplete) {
-          onAnalysisComplete(finalMetrics);
+        if (detection) {
+          // Calculate confidence based on neutral/happy expressions
+          const confidenceScore = Math.min(100, (detection.expressions.neutral * 60) + (detection.expressions.happy * 40) + 40);
+          
+          // Calculate stress based on fearful/angry/sad expressions
+          const stressScore = Math.min(100, (detection.expressions.fearful * 100) + (detection.expressions.angry * 100) + (detection.expressions.sad * 50));
+          
+          setMetrics(prev => {
+            // Smooth transitions
+            const newConfidence = Math.round((prev.confidence * 0.7) + (confidenceScore * 0.3));
+            const newStress = Math.round((prev.stress * 0.7) + (stressScore * 0.3));
+            // Focus is high if a face is detected
+            const newFocus = Math.min(100, prev.focus + 10);
+            
+            const finalMetrics = {
+              confidence: newConfidence,
+              stress: newStress,
+              focus: newFocus
+            };
+
+            if (onAnalysisComplete) {
+              onAnalysisComplete(finalMetrics);
+            }
+            return finalMetrics;
+          });
+        } else {
+          // Penalty if face is not detected (lost focus)
+          setMetrics(prev => {
+            const newFocus = Math.max(0, prev.focus - 15);
+            const finalMetrics = { ...prev, focus: newFocus };
+            if (onAnalysisComplete) {
+              onAnalysisComplete(finalMetrics);
+            }
+            return finalMetrics;
+          });
         }
+      }
+    };
 
-        return finalMetrics;
-      });
-    }, 2000);
+    videoRef.current.addEventListener('play', () => {
+      scanInterval = setInterval(detectFaces, 1000);
+    });
 
-    return () => clearInterval(interval);
-  }, [isScanning]);
+    return () => {
+      if (scanInterval) clearInterval(scanInterval);
+    };
+  }, [isScanning, modelsLoaded]);
 
   // Draw Scanner HUD on Canvas
   useEffect(() => {
@@ -123,6 +178,14 @@ function VideoAnalyzer({ onAnalysisComplete }) {
     return (
       <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', borderRadius: '8px', color: '#ef4444', fontSize: '0.8rem', textAlign: 'center' }}>
         {i18n.language === 'ar' ? 'تم رفض إذن الكاميرا. لن يتم تسجيل تحليل الانفعالات.' : 'Camera permission denied. Emotion analysis will not be recorded.'}
+      </div>
+    );
+  }
+
+  if (!modelsLoaded) {
+    return (
+      <div style={{ padding: '1rem', textAlign: 'center', color: '#fca311', fontSize: '0.8rem' }}>
+        {i18n.language === 'ar' ? 'جاري تحميل نماذج الذكاء الاصطناعي...' : 'Loading AI Models...'}
       </div>
     );
   }
