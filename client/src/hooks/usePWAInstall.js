@@ -12,21 +12,26 @@ export function usePWAInstall() {
     }
 
     const handleBeforeInstallPrompt = (e) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
+      window.deferredPrompt = e;
       setIsInstallable(true);
     };
 
     const handleAppInstalled = () => {
-      setIsInstallable(false);
       setIsInstalled(true);
       setDeferredPrompt(null);
+      window.deferredPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+
+    // If it was captured early in index.html
+    if (window.deferredPrompt) {
+      setDeferredPrompt(window.deferredPrompt);
+      setIsInstallable(true);
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -35,24 +40,31 @@ export function usePWAInstall() {
   }, []);
 
   const installApp = async () => {
-    if (!deferredPrompt) return;
+    const promptEvent = deferredPrompt || window.deferredPrompt;
+    
+    if (!promptEvent) {
+      alert('لا يمكن تثبيت التطبيق حالياً. تأكد أنك لا تستخدم وضع التصفح الخفي وأن المتصفح يدعم هذه الميزة، أو استخدم خيار (إضافة للشاشة الرئيسية) من قائمة المتصفح.');
+      return;
+    }
     
     // Show the install prompt
-    deferredPrompt.prompt();
+    promptEvent.prompt();
     
     // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
+    const { outcome } = await promptEvent.userChoice;
     
     if (outcome === 'accepted') {
       console.log('User accepted the install prompt');
-      setIsInstallable(false);
     } else {
       console.log('User dismissed the install prompt');
     }
     
     // We've used the prompt, and can't use it again, throw it away
     setDeferredPrompt(null);
+    window.deferredPrompt = null;
   };
 
-  return { isInstallable, isInstalled, installApp };
+  // We intentionally return isInstallable as true always so the button never hides automatically,
+  // letting the user click it and get the alert fallback if it fails.
+  return { isInstallable: true, isInstalled, installApp };
 }
