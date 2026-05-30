@@ -7,22 +7,28 @@ const Applicant = require('../models/Applicant');
 // Middleware to check for Owner Secret
 const ownerOnly = async (req, res, next) => {
   const secret = req.headers['x-owner-secret'];
-  const MAIN_OWNER_SECRET = process.env.OWNER_PASSWORD || 'change-this-secret';
-  if (secret === MAIN_OWNER_SECRET) {
-    req.ownerRole = 'main_owner';
-    return next();
-  }
-
-  // Check KSA Branch secret
+  
   try {
     const SystemSettings = require('../models/SystemSettings');
-    const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
+    
+    // Check Main Owner secret
+    const mainSetting = await SystemSettings.findOne({ key: 'main_owner_settings' });
+    const fallbackMain = process.env.OWNER_PASSWORD || 'change-this-secret';
+    const mainPassword = mainSetting?.value?.password || fallbackMain;
+    
+    if (secret === mainPassword) {
+      req.ownerRole = 'main_owner';
+      return next();
+    }
+
+    // Check KSA Branch secret
+    const ksaSetting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
     const fallbackKsa = process.env.KSA_BRANCH_PASSWORD || 'ksa-branch-change-this';
-    const ksaPassword = setting?.value?.password || fallbackKsa;
+    const ksaPassword = ksaSetting?.value?.password || fallbackKsa;
     
     if (secret === ksaPassword) {
       req.ownerRole = 'ksa_branch';
-      req.ksaPermissions = setting?.value || {
+      req.ksaPermissions = ksaSetting?.value || {
         password: fallbackKsa,
         canManageCompanies: true,
         canManagePlans: true,
@@ -32,7 +38,7 @@ const ownerOnly = async (req, res, next) => {
       return next();
     }
   } catch (err) {
-    console.error('KSA Auth Error:', err);
+    console.error('Auth Error:', err);
   }
 
   res.status(403).json({ message: 'Forbidden: Owner access only' });
@@ -41,13 +47,20 @@ const ownerOnly = async (req, res, next) => {
 // POST /verify-access -> verifies if secret is Main Owner or KSA Branch Manager
 router.post('/verify-access', async (req, res) => {
   const secret = req.headers['x-owner-secret'] || req.body?.secret;
-  const MAIN_OWNER_SECRET = process.env.OWNER_PASSWORD || 'change-this-secret';
-  if (secret === MAIN_OWNER_SECRET) {
-    return res.json({ success: true, role: 'main_owner' });
-  }
-
+  
   try {
     const SystemSettings = require('../models/SystemSettings');
+    
+    // Check Main Owner
+    const mainSetting = await SystemSettings.findOne({ key: 'main_owner_settings' });
+    const fallbackMain = process.env.OWNER_PASSWORD || 'change-this-secret';
+    const mainPassword = mainSetting?.value?.password || fallbackMain;
+    
+    if (secret === mainPassword) {
+      return res.json({ success: true, role: 'main_owner' });
+    }
+
+    // Check KSA Branch Manager
     const setting = await SystemSettings.findOne({ key: 'ksa_branch_settings' });
     const fallbackKsa = process.env.KSA_BRANCH_PASSWORD || 'ksa-branch-change-this';
     const ksaPassword = setting?.value?.password || fallbackKsa;
@@ -67,6 +80,48 @@ router.post('/verify-access', async (req, res) => {
   }
 
   return res.status(403).json({ message: 'كلمة المرور غير صحيحة | Invalid password' });
+});
+
+// GET Main Owner Settings (Main Owner only)
+router.get('/main-settings', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'صلاحية الوصول محصورة بالمالك الأساسي فقط' });
+  }
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const setting = await SystemSettings.findOne({ key: 'main_owner_settings' });
+    const fallbackMain = process.env.OWNER_PASSWORD || 'change-this-secret';
+    const defaultMain = {
+      password: fallbackMain
+    };
+    res.json(setting?.value || defaultMain);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST Save Main Owner Settings (Main Owner only)
+router.post('/main-settings', ownerOnly, async (req, res) => {
+  if (req.ownerRole !== 'main_owner') {
+    return res.status(403).json({ message: 'صلاحية الوصول محصورة بالمالك الأساسي فقط' });
+  }
+  try {
+    const SystemSettings = require('../models/SystemSettings');
+    const { password } = req.body;
+    
+    if (!password || password.trim().length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    await SystemSettings.findOneAndUpdate(
+      { key: 'main_owner_settings' },
+      { value: { password } },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, message: 'تم تحديث إعدادات المالك الأساسي بنجاح' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // GET KSA Branch Settings (Main Owner only)

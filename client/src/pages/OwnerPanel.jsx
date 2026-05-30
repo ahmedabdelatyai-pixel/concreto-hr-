@@ -275,6 +275,12 @@ function OwnerPanel() {
   const [ksaSuccess, setKsaSuccess] = useState('');
   const [ksaError, setKsaError] = useState('');
 
+  // Main Owner Management States
+  const [mainOwnerSettings, setMainOwnerSettings] = useState({ password: '' });
+  const [mainLoading, setMainLoading] = useState(false);
+  const [mainSuccess, setMainSuccess] = useState('');
+  const [mainError, setMainError] = useState('');
+
   // Owner password dynamic tracker
   const [activeOwnerSecret, setActiveOwnerSecret] = useState('');
   const OWNER_PASSWORD = activeOwnerSecret;
@@ -290,9 +296,36 @@ function OwnerPanel() {
       fetchBranding();
       if (ownerRole === 'main_owner') {
         fetchKsaSettings();
+        fetchMainSettings();
       }
     }
   }, [isAuthenticated, ownerRole]);
+
+  const fetchMainSettings = async () => {
+    try {
+      const res = await api.get('/owner/main-settings', { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      if (res.data) setMainOwnerSettings(res.data);
+    } catch (err) {
+      console.error('Failed to fetch Main Owner settings', err);
+    }
+  };
+
+  const handleSaveMainSettings = async (e) => {
+    e.preventDefault();
+    setMainLoading(true);
+    setMainSuccess('');
+    setMainError('');
+    try {
+      await api.post('/owner/main-settings', mainOwnerSettings, { headers: { 'x-owner-secret': OWNER_PASSWORD } });
+      setMainSuccess(isAr ? '✅ تم تحديث كلمة مرور المالك بنجاح!' : '✅ Owner password updated successfully!');
+      setActiveOwnerSecret(mainOwnerSettings.password); // Update active session secret
+      setTimeout(() => setMainSuccess(''), 4000);
+    } catch (err) {
+      setMainError(err.response?.data?.message || err.message);
+    } finally {
+      setMainLoading(false);
+    }
+  };
 
   const fetchKsaSettings = async () => {
     try {
@@ -860,6 +893,7 @@ function OwnerPanel() {
             { key: 'footer', label: isAr ? '🌐 إعدادات الفوتر' : '🌐 Footer Settings', color: '#06b6d4', show: ownerRole === 'main_owner' },
             { key: 'manual', label: isAr ? '📖 الدليل الإرشادي' : '📖 User Manual', color: '#f43f5e', show: ownerRole === 'main_owner' },
             { key: 'ksa', label: isAr ? '🇸🇦 إدارة فرع السعودية' : '🇸🇦 KSA Branch Control', color: '#10b981', show: ownerRole === 'main_owner' },
+            { key: 'security', label: isAr ? '🔐 إعدادات الحماية' : '🔐 Security Settings', color: '#f43f5e', show: ownerRole === 'main_owner' },
           ].filter(tab => tab.show).map(tab => (
             <button
               key={tab.key}
@@ -2189,6 +2223,53 @@ function OwnerPanel() {
 
                 <button type="submit" className="btn btn-primary" disabled={ksaLoading} style={{ padding: '0.8rem 2rem', fontSize: '1rem', fontWeight: 'bold' }}>
                   {ksaLoading ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ الصلاحيات' : 'Save Permissions')}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ===== SECURITY TAB (Main Owner Only) ===== */}
+        {activeTab === 'security' && ownerRole === 'main_owner' && (
+          <div className="fade-in">
+            <div className="card card-glow" style={{ padding: '3rem', borderTop: '4px solid #f43f5e' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                <span style={{ fontSize: '2.5rem' }}>🔐</span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800' }}>
+                    {isAr ? 'إعدادات الحماية وتغيير كلمة المرور' : 'Security Settings & Password'}
+                  </h2>
+                  <p className="text-muted" style={{ margin: 0 }}>
+                    {isAr ? 'تغيير كلمة المرور الخاصة بالمالك الأساسي للتحكم بالمنصة' : 'Change the main owner password used to access this super-panel'}
+                  </p>
+                </div>
+              </div>
+
+              {mainSuccess && <div style={{ padding: '1rem', backgroundColor: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '8px', marginBottom: '1.5rem', fontWeight: 'bold' }}>{mainSuccess}</div>}
+              {mainError && <div style={{ padding: '1rem', backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', marginBottom: '1.5rem', fontWeight: 'bold' }}>{mainError}</div>}
+
+              <form onSubmit={handleSaveMainSettings}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{isAr ? '🔑 كلمة المرور الجديدة' : '🔑 New Password'}</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={mainOwnerSettings.password || ''}
+                      onChange={e => setMainOwnerSettings({ ...mainOwnerSettings, password: e.target.value })}
+                      placeholder="Enter a strong password"
+                      required
+                      minLength="6"
+                      style={{ padding: '0.8rem' }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.25rem', display: 'block' }}>
+                      {isAr ? 'احفظ كلمة المرور هذه في مكان آمن. ستستخدمها في تسجيل الدخول القادم.' : 'Keep this password safe. You will use it for your next login.'}
+                    </span>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" disabled={mainLoading} style={{ padding: '0.8rem 2rem', fontSize: '1rem', fontWeight: 'bold', backgroundColor: '#f43f5e', border: 'none' }}>
+                  {mainLoading ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ كلمة المرور' : 'Save Password')}
                 </button>
               </form>
             </div>
