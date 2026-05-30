@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useInterviewStore } from '../store/interviewStore';
 import { generateQuestions } from '../services/aiApi';
+import VideoAnalyzer from '../components/VideoAnalyzer';
 
 // Memoized Typewriter to avoid re-running on parent re-renders
 const TypewriterText = ({ text, onComplete }) => {
@@ -62,6 +63,10 @@ function InterviewPhase() {
   const setQuestions = useInterviewStore(state => state.setQuestions);
   const incrementCheat = useInterviewStore(state => state.incrementCheat); // ✅
   const storeCheatAttempts = useInterviewStore(state => state.cheatAttempts); // ✅
+  const setEmotionData = useInterviewStore(state => state.setEmotionData);
+
+  // Emotion Metrics aggregation
+  const [emotionSamples, setEmotionSamples] = useState([]);
   
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -387,6 +392,14 @@ function InterviewPhase() {
         setMessages(prev => [...prev, { id: Date.now(), role: 'ai', text: finalMsg, typed: false }]);
         setIsTyping(false);
         
+        // Aggregate emotion data
+        if (emotionSamples.length > 0) {
+          const avgConfidence = Math.round(emotionSamples.reduce((sum, s) => sum + s.confidence, 0) / emotionSamples.length);
+          const avgStress = Math.round(emotionSamples.reduce((sum, s) => sum + s.stress, 0) / emotionSamples.length);
+          const avgFocus = Math.round(emotionSamples.reduce((sum, s) => sum + s.focus, 0) / emotionSamples.length);
+          setEmotionData({ confidence: avgConfidence, stress: avgStress, focus: avgFocus });
+        }
+
         setTimeout(() => navigate('/completion'), 3500);
       }, 1500);
     }
@@ -491,25 +504,48 @@ function InterviewPhase() {
         <div style={{ width: `${((currentStep + 1) / questions.length) * 100}%`, height: '100%', background: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))', transition: 'width 0.5s' }}></div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="chat-container" style={{ flex: 1, padding: '2rem 15%', backgroundImage: 'radial-gradient(circle at center, rgba(252, 163, 17, 0.03) 0%, transparent 70%)', backgroundColor: '#050a14', border: 'none' }}>
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-bubble ${msg.role === 'ai' ? 'chat-bubble-ai' : 'chat-bubble-user'}`} style={{ fontSize: '1.05rem', padding: '1.2rem 1.5rem', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: '85%' }}>
-            {msg.role === 'ai' && !msg.typed ? (
-              <TypewriterText text={msg.text} onComplete={() => handleTypingComplete(msg.id)} />
-            ) : (
-              msg.text
-            )}
-          </div>
-        ))}
+      {/* Main Content Area */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        {isTyping && (
-          <div className="typing-indicator" style={{ backgroundColor: 'transparent', padding: '0.5rem 1rem' }}>
-            <span></span><span></span><span></span>
+        {/* Chat Messages */}
+        <div className="chat-container" style={{ flex: 1, padding: '2rem 10%', backgroundImage: 'radial-gradient(circle at center, rgba(252, 163, 17, 0.03) 0%, transparent 70%)', backgroundColor: '#050a14', border: 'none', overflowY: 'auto' }}>
+          {messages.map((msg) => (
+            <div key={msg.id} className={`chat-bubble ${msg.role === 'ai' ? 'chat-bubble-ai' : 'chat-bubble-user'}`} style={{ fontSize: '1.05rem', padding: '1.2rem 1.5rem', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: '85%' }}>
+              {msg.role === 'ai' && !msg.typed ? (
+                <TypewriterText text={msg.text} onComplete={() => handleTypingComplete(msg.id)} />
+              ) : (
+                msg.text
+              )}
+            </div>
+          ))}
+          
+          {isTyping && (
+            <div className="typing-indicator" style={{ backgroundColor: 'transparent', padding: '0.5rem 1rem' }}>
+              <span></span><span></span><span></span>
+            </div>
+          )}
+          
+          <div ref={chatEndRef} style={{ height: '20px' }}></div>
+        </div>
+
+        {/* Video Analyzer Sidebar */}
+        {!isInitializing && (
+          <div style={{ width: '260px', padding: '1.5rem', borderLeft: '1px solid rgba(255,255,255,0.05)', backgroundColor: '#0a1120', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h4 style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '1px' }}>
+              {isArabic ? 'تحليل البصمة الحيوية' : 'Biometric Analysis'}
+            </h4>
+            <VideoAnalyzer 
+              onAnalysisComplete={(metrics) => {
+                setEmotionSamples(prev => [...prev, metrics]);
+              }} 
+            />
+            <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '1rem', textAlign: 'center', lineHeight: '1.5' }}>
+              {isArabic 
+                ? 'يتم رصد الانفعالات ومستوى الثقة محلياً لضمان الخصوصية التامة.' 
+                : 'Emotions and confidence levels are monitored locally to ensure complete privacy.'}
+            </p>
           </div>
         )}
-        
-        <div ref={chatEndRef} style={{ height: '20px' }}></div>
       </div>
 
       {/* Input Area — type-aware */}

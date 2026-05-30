@@ -26,6 +26,8 @@ export const useInterviewStore = create(
       evaluation: null,
       // ✅ integrity tracking (cheat counter)
       cheatAttempts: 0,
+      // ✅ Emotion analysis averages
+      emotionData: { confidence: 0, stress: 0, focus: 0 },
       isDemoMode: false,
 
       setCandidateInfo: (info) => set((state) => ({
@@ -54,6 +56,8 @@ export const useInterviewStore = create(
 
       setEvaluation: (evaluation) => set({ evaluation }),
 
+      setEmotionData: (emotionData) => set({ emotionData }),
+
       // ✅ called from InterviewPhase anti-cheat
       incrementCheat: () => set((state) => ({ cheatAttempts: state.cheatAttempts + 1 })),
 
@@ -70,6 +74,7 @@ export const useInterviewStore = create(
         interviewAnswers: [],
         evaluation: null,
         cheatAttempts: 0,
+        emotionData: { confidence: 0, stress: 0, focus: 0 },
         isDemoMode: false,
       })
     }),

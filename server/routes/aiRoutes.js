@@ -388,23 +388,25 @@ router.post('/generate-questions', apiLimiter, async (req, res) => {
 الوظيفة: "${jobTitle}"
 ${jdContext}
 ${cvContext}
-يجب أن تكون الأسئلة موزعة: 30% صح أو غلط، 40% اختيارات متعدة، 30% مقالية.
+يجب أن تكون الأسئلة موزعة: 30% صح أو غلط، 40% اختيارات متعدة، 30% مقالية. قم بدمج سؤال واحد من نوع "سيناريو" (scenario) لمحاكاة دور وتفاعل حي.
 الأسئلة باللغة العربية ومخصصة للمتقدم.
 أخرج JSON array بهذا الشكل:
 [{ "type": "truefalse", "question": "...", "correctAnswer": "true", "category": "Technical", "weight": 1 },
  { "type": "mcq", "question": "...", "choices": ["أ", "ب", "ج", "د"], "correctAnswer": "أ", "category": "Technical", "weight": 1.2 },
- { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 }]`
+ { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 },
+ { "type": "scenario", "question": "أنت تواجه العميل الغاضب... ماذا تفعل؟", "category": "Hybrid", "weight": 2 }]`
   : `
 You are an AI interviewer. Generate ${aiCount} questions.
 Job Title: "${jobTitle}"
 ${jdContext}
 ${cvContext}
-Distribution: 30% True/False, 40% MCQ, 30% Essay.
+Distribution: 30% True/False, 40% MCQ, 30% Essay. Include at least 1 "scenario" type question for Role-Play simulation.
 Questions MUST be in English and personalized.
 Return ONLY a JSON array:
 [{ "type": "truefalse", "question": "...", "correctAnswer": "true", "category": "Technical", "weight": 1 },
  { "type": "mcq", "question": "...", "choices": ["A", "B", "C", "D"], "correctAnswer": "A", "category": "Technical", "weight": 1.2 },
- { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 }]`;
+ { "type": "essay", "question": "...", "category": "Behavioral", "weight": 1 },
+ { "type": "scenario", "question": "You are facing this angry customer situation... How do you respond?", "category": "Hybrid", "weight": 2 }]`;
 
   let aiQuestions = [];
   try {
@@ -484,7 +486,7 @@ CANDIDATE CV SKILLS: ${cvData?.skills?.join(', ') || ''}
 JOB DESCRIPTION SUMMARY: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
 SCORING RULES: Score each essay 0-10.
 MANDATORY OUTPUT (raw JSON only):
-{ "behavior_score": <0-40>, "behavior_reasoning": "...", "attitude_score": <0-30>, "attitude_reasoning": "...", "personality_score": <0-30>, "personality_reasoning": "...", "total_score": <sum>, "disc": { "d": 50, "i": 50, "s": 50, "c": 50 }, "strengths": ["..."], "weaknesses": ["..."], "recommendation": "<Strong Fit | Potential Fit | Not Fit>", "gap_analysis": "..." }`;
+{ "behavior_score": <0-40>, "behavior_reasoning": "...", "attitude_score": <0-30>, "attitude_reasoning": "...", "personality_score": <0-30>, "personality_reasoning": "...", "total_score": <sum>, "disc": { "d": 50, "i": 50, "s": 50, "c": 50 }, "strengths": ["..."], "weaknesses": ["..."], "recommendation": "<Strong Fit | Potential Fit | Not Fit>", "gap_analysis": "...", "retention_probability": <0-100> }`;
 
   try {
     let rawStr = null;
@@ -510,9 +512,14 @@ MANDATORY OUTPUT (raw JSON only):
       let recommendation = result.recommendation;
       if (blendedTotal >= 80) recommendation = 'Strong Fit';
       else if (blendedTotal >= 60) recommendation = 'Potential Fit';
-      else if (blendedTotal > 0) recommendation = 'Not Fit';
       
-      return res.json({ ...result, total_score: blendedTotal, recommendation, mcq_score: mcqScore, essay_score: result.total_score, mcqCorrect, mcqTotal, gap_analysis: result.gap_analysis || '', answers: scoredAnswers });
+      // Calculate Retention Probability heuristically if AI omitted it
+      let retention_probability = result.retention_probability || 0;
+      if (retention_probability === 0) {
+        retention_probability = Math.min(99, Math.round((blendedTotal * 0.7) + (result.disc.s * 0.5) + (result.disc.c * 0.3)));
+      }
+
+      return res.json({ ...result, total_score: blendedTotal, recommendation, mcq_score: mcqScore, essay_score: result.total_score, mcqCorrect, mcqTotal, gap_analysis: result.gap_analysis || '', retention_probability, answers: scoredAnswers });
     }
   } catch(e) {}
 

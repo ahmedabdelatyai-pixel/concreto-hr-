@@ -25,6 +25,8 @@ const jobSchema = new mongoose.Schema({
     choices: [String],       // for MCQ: ['A', 'B', 'C', 'D']
     correctAnswer: { type: String } // for MCQ/T-F stored server-side
   }],
+  // ✅ NEW: Enable AI interactive Role-Play mode for this job
+  isRolePlay: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

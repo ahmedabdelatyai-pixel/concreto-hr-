@@ -150,6 +150,45 @@ function AdminDashboard() {
     }
   };
 
+  // ✅ NEW: Export to ATS
+  const handleExportATS = () => {
+    const safeApplicants = Array.isArray(applicants) ? applicants : [];
+    if (safeApplicants.length === 0) return;
+    
+    // Create standard JSON format for Workday/BambooHR
+    const exportData = safeApplicants.map(app => ({
+      candidateId: app._id,
+      name: app.candidate?.name || 'N/A',
+      email: app.candidate?.email || 'N/A',
+      phone: app.candidate?.phone || '',
+      jobTitle: app.candidate?.jobTitle || '',
+      source: app.source || 'Website',
+      status: app.status || 'Pending',
+      applicationDate: app.appliedAt,
+      // Extracted CV Data
+      cvSkills: app.cvData?.skills || [],
+      experienceYears: app.cvData?.experience_years || 0,
+      education: app.cvData?.education || '',
+      // AI Evaluation
+      totalScore: app.evaluation?.total_score || 0,
+      recommendation: app.evaluation?.recommendation || 'Pending',
+      retentionProbability: app.analytics?.retention_probability || 0,
+      culturalFit: app.analytics?.cultural_fit || 0,
+      // Video Analysis Averages
+      confidenceScore: app.emotion_data?.confidence || 0,
+      stressScore: app.emotion_data?.stress || 0,
+      focusScore: app.emotion_data?.focus || 0
+    }));
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ATS_Export_${new Date().toISOString().slice(0,10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Redirect if not logged in
   if (!isUserLoggedIn) {
     navigate('/admin/login');
@@ -979,10 +1018,16 @@ function AdminDashboard() {
                   ({filteredApplicants.length} {t('of', 'من')} {applicants.length})
                 </span>
               </h3>
-              <button className="btn btn-outline" onClick={() => { if(window.confirm(t('Clear all applicants?', 'حذف جميع المتقدمين؟'))) clearApplicants(); }}
-                style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
-                🗑 {t('Clear All', 'حذف الكل')}
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-outline" onClick={handleExportATS}
+                  style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', color: '#10b981', borderColor: '#10b981' }}>
+                  📥 {t('Export to ATS', 'تصدير لـ ATS')}
+                </button>
+                <button className="btn btn-outline" onClick={() => { if(window.confirm(t('Clear all applicants?', 'حذف جميع المتقدمين؟'))) clearApplicants(); }}
+                  style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                  🗑 {t('Clear All', 'حذف الكل')}
+                </button>
+              </div>
             </div>
 
             {/* Search & Filter Bar */}
@@ -1221,6 +1266,33 @@ function AdminDashboard() {
                       <InfoRow label={t('Email', 'البريد')} value={selectedApplicant.candidate.email} />
                       <InfoRow label={t('Applied Role', 'الوظيفة')} value={selectedApplicant.candidate.jobTitle || 'N/A'} />
                       <InfoRow label={t('Applied Date', 'تاريخ التقديم')} value={new Date(selectedApplicant.appliedAt).toLocaleDateString()} />
+                      
+                      {selectedApplicant.analytics && selectedApplicant.analytics.retention_probability > 0 && (
+                        <div style={{ marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(252, 163, 17, 0.1)', borderRadius: '8px', border: '1px solid rgba(252, 163, 17, 0.3)' }}>
+                          <div style={{ fontSize: '0.8rem', color: '#fca311', marginBottom: '4px', fontWeight: 'bold' }}>🔮 {t('Retention Prediction', 'التنبؤ بالاستمرارية')}</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>{selectedApplicant.analytics.retention_probability}%</div>
+                        </div>
+                      )}
+                      
+                      {selectedApplicant.emotion_data && selectedApplicant.emotion_data.confidence > 0 && (
+                        <div style={{ marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          <div style={{ fontSize: '0.8rem', color: '#10b981', marginBottom: '4px', fontWeight: 'bold' }}>🧠 {t('Biometric Analysis', 'تحليل البصمة الحيوية')}</div>
+                          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                            <div>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{t('Confidence', 'الثقة')}</div>
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#fff' }}>{selectedApplicant.emotion_data.confidence}%</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{t('Stress', 'التوتر')}</div>
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ef4444' }}>{selectedApplicant.emotion_data.stress}%</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{t('Focus', 'التركيز')}</div>
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#fca311' }}>{selectedApplicant.emotion_data.focus}%</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

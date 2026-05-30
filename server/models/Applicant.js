@@ -45,6 +45,17 @@ const applicantSchema = new mongoose.Schema({
     essay_score: Number,    // AI-evaluated essay score
     gap_analysis: String,   // AI-written gap analysis paragraph
   },
+  // ✅ NEW: Video Emotion Analysis Data
+  emotion_data: {
+    confidence: { type: Number, default: 0 },
+    stress: { type: Number, default: 0 },
+    focus: { type: Number, default: 0 }
+  },
+  // ✅ NEW: HR Analytics (ATS compatibility)
+  analytics: {
+    retention_probability: { type: Number, default: 0 },
+    cultural_fit: { type: Number, default: 0 }
+  },
   answers: [{
     question: String,
     answer: String,
