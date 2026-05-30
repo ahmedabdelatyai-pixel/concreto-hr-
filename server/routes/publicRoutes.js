@@ -127,7 +127,7 @@ router.post('/applicants/init', apiLimiter, async (req, res) => {
 // PATCH submit applicant results (Public) + Integrately Webhook
 router.patch('/applicants/:id/submit', apiLimiter, async (req, res) => {
   try {
-    const { answers, evaluation, cvData, cvFile, accessSecret, cheatAttempts, integrityScore } = req.body;
+    const { answers, evaluation, cvData, cvFile, accessSecret, cheatAttempts, integrityScore, emotionData } = req.body;
     const Applicant = require('../models/Applicant');
 
     // Enrich answers with isCorrect flag (preserve what client calculated)
@@ -156,6 +156,12 @@ router.patch('/applicants/:id/submit', apiLimiter, async (req, res) => {
         // ✅ Integrity data
         cheatAttempts: cheatAttempts || 0,
         integrityScore: integrityScore !== undefined ? integrityScore : 100,
+        // ✅ Emotion & Analytics data
+        emotion_data: emotionData || { confidence: 0, stress: 0, focus: 0 },
+        analytics: {
+          retention_probability: enrichedEvaluation.retention_probability || 0,
+          cultural_fit: Math.round(((enrichedEvaluation.disc?.i || 0) + (enrichedEvaluation.disc?.s || 0)) / 2)
+        }
       },
       { new: true }
     );
