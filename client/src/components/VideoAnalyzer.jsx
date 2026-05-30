@@ -8,7 +8,7 @@ function VideoAnalyzer({ onAnalysisComplete }) {
   
   const [stream, setStream] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [metrics, setMetrics] = useState({ confidence: 0, stress: 0, focus: 0 });
+  const [metrics, setMetrics] = useState({ confidence: 85, stress: 20, focus: 90 });
   const [hasPermission, setHasPermission] = useState(true);
 
   // Start Video Stream
@@ -41,29 +41,27 @@ function VideoAnalyzer({ onAnalysisComplete }) {
     if (!isScanning) return;
 
     const interval = setInterval(() => {
-      // Simulate slight fluctuations in real-time metrics
-      const newConfidence = Math.min(100, Math.max(60, metrics.confidence + (Math.random() * 10 - 5)));
-      const newStress = Math.min(100, Math.max(10, metrics.stress + (Math.random() * 8 - 4)));
-      const newFocus = Math.min(100, Math.max(50, metrics.focus + (Math.random() * 12 - 6)));
+      setMetrics(prev => {
+        const newConfidence = Math.min(99, Math.max(70, prev.confidence + (Math.random() * 10 - 5)));
+        const newStress = Math.min(40, Math.max(10, prev.stress + (Math.random() * 8 - 4)));
+        const newFocus = Math.min(99, Math.max(75, prev.focus + (Math.random() * 12 - 6)));
 
-      setMetrics({
-        confidence: isNaN(newConfidence) ? 85 : newConfidence,
-        stress: isNaN(newStress) ? 20 : newStress,
-        focus: isNaN(newFocus) ? 90 : newFocus
-      });
-
-      // Pass averaged metrics up to parent
-      if (onAnalysisComplete) {
-        onAnalysisComplete({
+        const finalMetrics = {
           confidence: Math.round(newConfidence),
           stress: Math.round(newStress),
           focus: Math.round(newFocus)
-        });
-      }
+        };
+
+        if (onAnalysisComplete) {
+          onAnalysisComplete(finalMetrics);
+        }
+
+        return finalMetrics;
+      });
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isScanning, metrics, onAnalysisComplete]);
+  }, [isScanning]);
 
   // Draw Scanner HUD on Canvas
   useEffect(() => {
